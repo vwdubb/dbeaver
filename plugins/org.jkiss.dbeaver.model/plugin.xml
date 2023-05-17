@@ -263,6 +263,15 @@
                 <property id="lenient" type="boolean" label="%NumericTransformer.property.lenient.label" description="%NumericTransformer.property.lenient.description" defaultValue="false" required="true"/>
             </propertyGroup>
         </transformer>
+        <transformer
+                class="org.jkiss.dbeaver.model.impl.data.transformers.AutoDecompressAttributeTransformer"
+                id="org.jkiss.dbeaver.core.AutoDecompressAttributeTransformer"
+                name="AUTO_DECOMPRESS"
+                description="%AutoDecompressTransformer.general.description"
+                applyByDefault="false"
+                custom="true">
+            <type kind="BINARY"/>
+        </transformer>
 
     </extension>
 
