@@ -25,7 +25,7 @@ public class AutoDecompressAttributeTransformer implements DBDAttributeTransform
 		attribute.setTransformHandler(new AutoDecompressAttributeTransformer.AutoDecompressHandler(attribute.getValueHandler()));
 	}
 
-    private static class AutoDecompressHandler extends ProxyValueHandler {
+	private static class AutoDecompressHandler extends ProxyValueHandler {
 		public AutoDecompressHandler(DBDValueHandler target) {
 			super(target);
 		}
@@ -45,5 +45,5 @@ public class AutoDecompressAttributeTransformer implements DBDAttributeTransform
 				return null;
 			}
 		}
-    }
+	}
 }
