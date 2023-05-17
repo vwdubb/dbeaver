@@ -31,19 +31,19 @@ public class AutoDecompressAttributeTransformer implements DBDAttributeTransform
 		}
 
 		@Override
-        public String getValueDisplayString(DBSTypedObject column, Object value, DBDDisplayFormat format) {
+		public String getValueDisplayString(DBSTypedObject column, Object value, DBDDisplayFormat format) {
 			byte[] bytes = null;
-            if (value instanceof byte[]) {
-                bytes = (byte[]) value;
-            } else if (value instanceof JDBCContentBytes) {
-                bytes = ((JDBCContentBytes) value).getRawValue();
-            }
+			if (value instanceof byte[]) {
+				bytes = (byte[]) value;
+			} else if (value instanceof JDBCContentBytes) {
+				bytes = ((JDBCContentBytes) value).getRawValue();
+			}
 
 			try {
-	            return bytes == null ? null : new String(new InflaterInputStream(new ByteArrayInputStream(bytes)).readAllBytes());
-	        } catch(IOException e) {
-	            return null;
-	        }
+				return bytes == null ? null : new String(new InflaterInputStream(new ByteArrayInputStream(bytes)).readAllBytes());
+			} catch(IOException e) {
+				return null;
+			}
 		}
     }
 }
