@@ -17,16 +17,16 @@ import org.jkiss.dbeaver.model.impl.data.ProxyValueHandler;
 import org.jkiss.dbeaver.model.impl.jdbc.data.JDBCContentBytes;
 import org.jkiss.dbeaver.model.struct.DBSTypedObject;
 
-public class AutoDecompressAttributeTransformer implements DBDAttributeTransformer {
+public class AutoInflateAttributeTransformer implements DBDAttributeTransformer {
 
 	@Override
 	public void transformAttribute(DBCSession session, DBDAttributeBinding attribute, List<Object[]> rows, Map<String, Object> options) throws DBException {
 		attribute.setPresentationAttribute(new TransformerPresentationAttribute(attribute, "COMPRESSED", -1, DBPDataKind.BINARY));
-		attribute.setTransformHandler(new AutoDecompressAttributeTransformer.AutoDecompressHandler(attribute.getValueHandler()));
+		attribute.setTransformHandler(new AutoInflateAttributeTransformer.AutoInflateHandler(attribute.getValueHandler()));
 	}
 
-	private static class AutoDecompressHandler extends ProxyValueHandler {
-		public AutoDecompressHandler(DBDValueHandler target) {
+	private static class AutoInflateHandler extends ProxyValueHandler {
+		public AutoInflateHandler(DBDValueHandler target) {
 			super(target);
 		}
 
