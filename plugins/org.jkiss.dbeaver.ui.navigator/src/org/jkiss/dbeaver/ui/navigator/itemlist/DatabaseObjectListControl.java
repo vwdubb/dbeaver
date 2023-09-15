@@ -41,7 +41,7 @@ import org.jkiss.dbeaver.ui.navigator.actions.NavigatorHandlerObjectOpen;
 public abstract class DatabaseObjectListControl<OBJECT_TYPE extends DBPObject> extends ObjectListControl<OBJECT_TYPE> {
 
     @Nullable
-    private IWorkbenchSite site;
+    private final IWorkbenchSite site;
 
     protected DatabaseObjectListControl(
         @NotNull Composite parent,
@@ -95,7 +95,7 @@ public abstract class DatabaseObjectListControl<OBJECT_TYPE extends DBPObject> e
 
     private class ObjectListRenderer extends ViewerRenderer {
         @Override
-        public boolean isHyperlink(Object cellValue)
+        public boolean isHyperlink(Object element, Object cellValue)
         {
             return cellValue instanceof DBSObject;
         }

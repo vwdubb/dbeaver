@@ -54,7 +54,7 @@ public class GroupingResultsDecorator extends ResultSetDecoratorBase {
 
     @Override
     public long getDecoratorFeatures() {
-        return FEATURE_PRESENTATIONS | FEATURE_FILTERS | FEATURE_COMPACT_FILTERS;
+        return FEATURE_PRESENTATIONS | FEATURE_FILTERS;
     }
 
     @Override
@@ -104,7 +104,7 @@ public class GroupingResultsDecorator extends ResultSetDecoratorBase {
             gridDropListeners = null;
         }
         DropTarget dropTarget = new DropTarget(presentationControl, DND.DROP_MOVE | DND.DROP_COPY);
-        dropTarget.setTransfer(LightGrid.GridColumnTransfer.INSTANCE, TextTransfer.getInstance());
+        dropTarget.setTransfer(LightGrid.GridColumnTransfer.INSTANCE);
         dropTarget.addDropListener(new DropTargetAdapter() {
             @Override
             public void dragEnter(DropTargetEvent event) {

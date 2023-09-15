@@ -260,13 +260,14 @@ public final class RuntimeUtils {
         monitorJob.schedule();
 
         // Wait for job to finish
+        boolean headlessMode = DBWorkbench.getPlatform().getApplication().isHeadlessMode();
         long startTime = System.currentTimeMillis();
         while (!monitoringTask.finished) {
             if (waitTime > 0 && System.currentTimeMillis() - startTime > waitTime) {
                 break;
             }
             try {
-                if (!DBWorkbench.getPlatformUI().readAndDispatchEvents()) {
+                if (headlessMode || !DBWorkbench.getPlatformUI().readAndDispatchEvents()) {
                     Thread.sleep(50);
                 }
             } catch (InterruptedException e) {
@@ -300,6 +301,41 @@ public final class RuntimeUtils {
         }
         catch (Exception ex) {
             throw new DBException("Error executing process " + binPath, ex);
+        }
+    }
+
+    public static String executeProcessAndCheckResult(String binPath, String ... args) throws DBException {
+        try {
+            String[] cmdBin = {binPath};
+            String[] cmd = args == null ? cmdBin : ArrayUtils.concatArrays(cmdBin, args);
+            Process p = Runtime.getRuntime().exec(cmd);
+            return getProcessResults(p);
+        }
+        catch (Exception ex) {
+            if (ex instanceof DBException) {
+                throw (DBException) ex;
+            }
+            throw new DBException("Error executing process " + binPath, ex);
+        }
+    }
+
+    @NotNull
+    public static String getProcessResults(Process p) throws IOException, InterruptedException, DBException {
+        try {
+            StringBuilder out = new StringBuilder();
+            readStringToBuffer(p.getInputStream(), out);
+
+            StringBuilder err = new StringBuilder();
+            readStringToBuffer(p.getErrorStream(), err);
+
+            p.waitFor();
+            if (p.exitValue() != 0) {
+                throw new DBException(err.toString());
+            }
+
+            return out.toString();
+        } finally {
+            p.destroy();
         }
     }
 
@@ -438,6 +474,36 @@ public final class RuntimeUtils {
         }
 
         return arguments;
+    }
+
+    @NotNull
+    public static String getWorkingDirectory(String defaultWorkspaceLocation) {
+        String osName = (System.getProperty("os.name")).toUpperCase();
+        String workingDirectory;
+        if (osName.contains("WIN")) {
+            String appData = System.getenv("AppData");
+            if (appData == null) {
+                appData = System.getProperty("user.home");
+            }
+            workingDirectory = appData + "\\" + defaultWorkspaceLocation;
+        } else if (osName.contains("MAC")) {
+            workingDirectory = System.getProperty("user.home") + "/Library/" + defaultWorkspaceLocation;
+        } else {
+            // Linux
+            String dataHome = System.getProperty("XDG_DATA_HOME");
+            if (dataHome == null) {
+                dataHome = System.getProperty("user.home") + "/.local/share";
+            }
+            String badWorkingDir = dataHome + "/." + defaultWorkspaceLocation;
+            String goodWorkingDir = dataHome + "/" + defaultWorkspaceLocation;
+            if (!new File(goodWorkingDir).exists() && new File(badWorkingDir).exists()) {
+                // Let's use bad working dir if it exists (#6316)
+                workingDirectory = badWorkingDir;
+            } else {
+                workingDirectory = goodWorkingDir;
+            }
+        }
+        return workingDirectory;
     }
 
     private enum CommandLineState {

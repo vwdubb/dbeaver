@@ -66,7 +66,7 @@ public abstract class BasePlatformImpl implements DBPPlatform, DBPApplicationCon
     public static final String CONFIG_FOLDER = ".config";
     public static final String FILES_FOLDER = ".files";
 
-    private OSDescriptor localSystem;
+    protected OSDescriptor localSystem;
 
     private DBNModel navigatorModel;
 
@@ -88,8 +88,6 @@ public abstract class BasePlatformImpl implements DBPPlatform, DBPApplicationCon
                 ((AbstractPreferenceStore)ds.getPreferenceStore()).firePropertyChangeEvent(prefsStore, event.getProperty(), event.getOldValue(), event.getNewValue());
             }
         });
-
-        this.localSystem = new OSDescriptor(Platform.getOS(), Platform.getOSArch());
 
         // Navigator model
         this.navigatorModel = new DBNModel(this, null);
@@ -196,7 +194,10 @@ public abstract class BasePlatformImpl implements DBPPlatform, DBPApplicationCon
             LocalConfigurationController controller = new LocalConfigurationController(
                 getWorkspace().getMetadataFolder().resolve(CONFIG_FOLDER)
             );
-            controller.setLegacyConfigFolder(getProductPlugin().getStateLocation().toFile().toPath());
+            Plugin productPlugin = getProductPlugin();
+            if (productPlugin != null && productPlugin.getStateLocation() != null) {
+                controller.setLegacyConfigFolder(productPlugin.getStateLocation().toFile().toPath());
+            }
             return controller;
         } else {
             return new LocalConfigurationController(
@@ -273,7 +274,10 @@ public abstract class BasePlatformImpl implements DBPPlatform, DBPApplicationCon
     @NotNull
     @Override
     public OSDescriptor getLocalSystem() {
-        return localSystem;
+        if (this.localSystem == null) {
+            this.localSystem = new OSDescriptor(Platform.getOS(), Platform.getOSArch());
+        }
+        return this.localSystem;
     }
 
     @NotNull

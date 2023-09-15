@@ -45,7 +45,6 @@ import org.jkiss.dbeaver.model.DBPNamedObject;
 import org.jkiss.dbeaver.model.DBPNamedObject2;
 import org.jkiss.dbeaver.model.DBPObject;
 import org.jkiss.dbeaver.model.DBUtils;
-import org.jkiss.dbeaver.model.impl.PropertyDescriptor;
 import org.jkiss.dbeaver.model.preferences.DBPPropertyDescriptor;
 import org.jkiss.dbeaver.model.preferences.DBPPropertySource;
 import org.jkiss.dbeaver.model.runtime.DBRProgressMonitor;
@@ -157,8 +156,7 @@ public class PropertyTreeViewer extends TreeViewer {
 
         renderer = new ObjectViewerRenderer(this) {
             @Override
-            public Object getCellValue(Object element, int columnIndex)
-            {
+            public Object getCellValue(Object element, int columnIndex) {
                 final TreeNode node = (TreeNode) element;
                 if (columnIndex == 0) {
                     return node.category != null ?
@@ -170,16 +168,25 @@ public class PropertyTreeViewer extends TreeViewer {
             }
 
             @Override
-            public boolean isHyperlink(Object cellValue)
-            {
+            public boolean isHyperlink(Object element, Object cellValue) {
+                if (element instanceof TreeNode) {
+                    DBPPropertyDescriptor property = ((TreeNode) element).property;
+                    if (property instanceof ObjectPropertyDescriptor && ((ObjectPropertyDescriptor) property).isHref()) {
+                        return true;
+                    }
+                }
                 return cellValue instanceof DBSObject;
             }
 
             @Override
-            public void navigateHyperlink(Object cellValue)
-            {
+            public void navigateHyperlink(Object cellValue) {
                 if (cellValue instanceof DBSObject) {
                     DBWorkbench.getPlatformUI().openEntityEditor((DBSObject) cellValue);
+                } else {
+                    String url = CommonUtils.toString(cellValue);
+                    if (url != null && url.contains("://")) {
+                        UIUtils.openWebBrowser(url);
+                    }
                 }
             }
 
@@ -197,6 +204,22 @@ public class PropertyTreeViewer extends TreeViewer {
             refresh();
         };
         this.themeChangeListener.propertyChange(null);
+        treeControl.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseDoubleClick(MouseEvent e) {
+                TreeItem[] selection = treeControl.getSelection();
+                if (selection.length > 0) {
+                    TreeItem item = selection[0];
+                    Object itemData = item.getData();
+                    if (itemData instanceof TreeNode) {
+                        Object propertyValue = getPropertyValue((TreeNode) itemData);
+                        if (renderer.isHyperlink(itemData, propertyValue)) {
+                            renderer.navigateHyperlink(propertyValue);
+                        }
+                    }
+                }
+            }
+        });
 
         PlatformUI.getWorkbench().getThemeManager().addPropertyChangeListener(themeChangeListener);
         getControl().addDisposeListener(e -> PlatformUI.getWorkbench().getThemeManager().removePropertyChangeListener(themeChangeListener));
@@ -492,11 +515,13 @@ public class PropertyTreeViewer extends TreeViewer {
                                     return;
                                 }
                                 if (lastNode.parent != null) lastNode = lastNode.parent;
-                                addProperty(lastNode, new PropertyDescriptor(lastNode.category, "prop" + lastNode.children.size(), "", "", false, String.class, "", null), true);
+                                //addProperty(lastNode, new PropertyDescriptor(lastNode.category, "prop" + lastNode.children.size(), "", "", false, String.class, "", null), true);
                                 allItems = treeControl.getItems();
-                                TreeItem newItem = allItems[allItems.length - 1];
-                                treeControl.setSelection(newItem);
-                                selectedColumn = UIUtils.getColumnAtPos(newItem, e.x, e.y);
+                                if (allItems.length > 0) {
+                                    TreeItem newItem = allItems[allItems.length - 1];
+                                    treeControl.setSelection(newItem);
+                                    selectedColumn = UIUtils.getColumnAtPos(newItem, e.x, e.y);
+                                }
                             }
                         }
                     }
@@ -1029,7 +1054,7 @@ public class PropertyTreeViewer extends TreeViewer {
                         } else {
                             return "";
                         }
-                    } else if (propertyValue == null || renderer.isHyperlink(propertyValue)) {
+                    } else if (propertyValue == null || renderer.isHyperlink(node, propertyValue)) {
                         return ""; //$NON-NLS-1$
                     } else if (isHidePropertyValue(node.property)) {
                         // Mask value

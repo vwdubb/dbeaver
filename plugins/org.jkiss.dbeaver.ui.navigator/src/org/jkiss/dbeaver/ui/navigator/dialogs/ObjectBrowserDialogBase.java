@@ -35,6 +35,7 @@ import org.jkiss.dbeaver.model.DBUtils;
 import org.jkiss.dbeaver.model.navigator.DBNContainer;
 import org.jkiss.dbeaver.model.navigator.DBNDataSource;
 import org.jkiss.dbeaver.model.navigator.DBNNode;
+import org.jkiss.dbeaver.model.navigator.DBNObjectNode;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 import org.jkiss.dbeaver.model.struct.DBSWrapper;
 import org.jkiss.dbeaver.ui.internal.UINavigatorMessages;
@@ -171,15 +172,21 @@ public abstract class ObjectBrowserDialogBase extends Dialog {
 
     protected boolean matchesResultNode(DBNNode node) {
         if (node instanceof DBSWrapper) {
-            DBSObject object = DBUtils.getAdapter(DBSObject.class, ((DBSWrapper) node).getObject());
-            if (object != null) {
-                return matchesType(object, true);
+            DBSObject object = ((DBSWrapper) node).getObject();
+            if (object != null && matchesType(object, true)) {
+                return true;
             }
+            object = DBUtils.getAdapter(DBSObject.class, object);
+            if (object != null && matchesType(object, true)) {
+                return true;
+            }
+        } else if (node instanceof DBNObjectNode) {
+            return matchesType(((DBNObjectNode) node).getNodeObject(), true);
         }
         return false;
     }
 
-    protected boolean matchesType(DBSObject object, boolean result) {
+    protected boolean matchesType(Object object, boolean result) {
         return true;
     }
 

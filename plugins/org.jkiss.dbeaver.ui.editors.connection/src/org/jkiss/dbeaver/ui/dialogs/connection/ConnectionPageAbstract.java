@@ -299,9 +299,9 @@ public abstract class ConnectionPageAbstract extends DialogPage implements IData
 
         DataSourceDescriptor dataSource = (DataSourceDescriptor)getSite().getActiveDataSource();
         savePasswordCheck = UIUtils.createCheckbox(panel,
-            UIConnectionMessages.dialog_connection_wizard_final_checkbox_save_password_locally,
+            UIConnectionMessages.dialog_connection_wizard_final_checkbox_save_password,
             dataSource == null || dataSource.isSavePassword());
-        savePasswordCheck.setToolTipText(UIConnectionMessages.dialog_connection_wizard_final_checkbox_save_password_locally);
+        savePasswordCheck.setToolTipText(UIConnectionMessages.dialog_connection_wizard_final_checkbox_save_password);
         //savePasswordCheck.setLayoutData(gd);
 
         if (supportsPasswordView) {
@@ -325,7 +325,7 @@ public abstract class ConnectionPageAbstract extends DialogPage implements IData
             if (!serviceSecurity.validatePassword(
                 site.getProject(),
                 "Enter project password",
-                "Enter project master password to unlock connection password view",
+                "Enter project password to unlock connection password view",
                 true))
             {
                 return;
@@ -376,7 +376,7 @@ public abstract class ConnectionPageAbstract extends DialogPage implements IData
                 final int index = driverSubstitutionCombo.getSelectionIndex();
                 final DBPDriverSubstitutionDescriptor driverSubstitution = index > 0 ? driverSubstitutions[index - 1] : null;
                 final IConnectionWizard wizard = (IConnectionWizard) site.getWizard();
-                wizard.firePropertyChangeEvent(PROP_DRIVER_SUBSTITUTION, null, driverSubstitution);
+                wizard.firePropertyChangeEvent(PROP_DRIVER_SUBSTITUTION, wizard.getDriverSubstitution(), driverSubstitution);
             }));
             driverSubstitutionCombo.add("JDBC");
 

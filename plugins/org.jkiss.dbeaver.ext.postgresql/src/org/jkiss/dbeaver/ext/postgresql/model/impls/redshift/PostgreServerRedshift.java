@@ -83,7 +83,72 @@ public class PostgreServerRedshift extends PostgreServerExtensionBase implements
         "TEMP",
         "UNLOAD",
         "VACUUM",
-        "YES"
+        "YES",
+        "AES128",
+        "AES256",
+        "ALLOWOVERWRITE",
+        "BLANKSASNULL",
+        "BYTEDICT",
+        "BZIP2",
+        "CREDENTIALS",
+        "DEFLATE",
+        "DEFRAG",
+        "DELTA",
+        "DELTA32K",
+        "EMPTYASNULL",
+        "ENCRYPT",
+        "ENCRYPTION",
+        "EXPLICIT",
+        "GLOBALDICT256",
+        "GLOBALDICT64K",
+        "GZIP",
+        "LUN",
+        "LUNS",
+        "LZO",
+        "LZOP",
+        "MINUS",
+        "MOSTLY16",
+        "MOSTLY32",
+        "MOSTLY8",
+        "OFFLINE",
+        "OID",
+        "PERMISSIONS",
+        "PIVOT",
+        "RAW",
+        "READRATIO",
+        "RECOVER",
+        "REJECTLOG",
+        "RESORT",
+        "SNAPSHOT",
+        "TAG",
+        "TDES",
+        "TEXT255",
+        "TEXT32K",
+        "TOP",
+        "TRUNCATECOLUMNS",
+        "UNPIVOT",
+        "WALLET",
+        "ACCEPTANYDATE",
+        "ACCEPTINVCHARS",
+        "BLANKSASNULL",
+        "DATEFORMAT",
+        "EMPTYASNULL",
+        "EXPLICIT_IDS",
+        "FILLRECORD",
+        "IGNOREBLANKLINES",
+        "IGNOREHEADER",
+        "NULLAS",
+        "REMOVEQUOTES",
+        "ROUNDEC",
+        "TIMEFORMAT",
+        "TRIMBLANKS",
+        "TRUNCATECOLUMNS",
+        "COMPROWS",
+        "COMPUPDATE",
+        "IGNOREALLERRORS",
+        "MAXERROR",
+        "NOLOAD",
+        "STATUPDATE"        
     };
    
     public static String[] REDSHIFT_FUNCTIONS_CONDITIONAL = new String[]{
@@ -418,5 +483,10 @@ public class PostgreServerRedshift extends PostgreServerExtensionBase implements
     @Override
     public boolean supportsAlterTableForViewRename() {
         return true;
+    }
+
+    @Override
+    public boolean supportsNativeClient() {
+        return false;
     }
 }

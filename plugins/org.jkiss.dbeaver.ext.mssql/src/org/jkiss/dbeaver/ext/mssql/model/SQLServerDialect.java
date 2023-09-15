@@ -29,6 +29,7 @@ import org.jkiss.dbeaver.model.impl.jdbc.JDBCDataSource;
 import org.jkiss.dbeaver.model.impl.jdbc.JDBCSQLDialect;
 import org.jkiss.dbeaver.model.sql.SQLConstants;
 import org.jkiss.dbeaver.model.sql.SQLDialectDDLExtension;
+import org.jkiss.dbeaver.model.sql.SQLDialectSchemaController;
 import org.jkiss.dbeaver.model.sql.parser.rules.SQLMultiWordRule;
 import org.jkiss.dbeaver.model.sql.parser.rules.SQLVariableRule;
 import org.jkiss.dbeaver.model.sql.parser.tokens.SQLTokenType;
@@ -43,7 +44,7 @@ import org.jkiss.utils.CommonUtils;
 
 import java.util.*;
 
-public class SQLServerDialect extends JDBCSQLDialect implements TPRuleProvider, SQLDialectDDLExtension {
+public class SQLServerDialect extends JDBCSQLDialect implements TPRuleProvider, SQLDialectDDLExtension, SQLDialectSchemaController {
 
     private static final String[][] TSQL_BEGIN_END_BLOCK = new String[][]{
         {SQLConstants.BLOCK_BEGIN, SQLConstants.BLOCK_END}
@@ -340,19 +341,23 @@ public class SQLServerDialect extends JDBCSQLDialect implements TPRuleProvider, 
         }
     }
 
+    @NotNull
     @Override
-    public void extendRules(@Nullable DBPDataSourceContainer dataSource, @NotNull List<TPRule> rules, @NotNull RulePosition position) {
+    public TPRule[] extendRules(@Nullable DBPDataSourceContainer dataSource, @NotNull RulePosition position) {
         if (position == RulePosition.FINAL) {
-            rules.add(new SQLVariableRule(this));
+            return new TPRule[] { new SQLVariableRule(this) };
         }
         if (position == RulePosition.KEYWORDS) {
             final TPTokenDefault keywordToken = new TPTokenDefault(SQLTokenType.T_KEYWORD);
             // https://docs.microsoft.com/en-us/sql/t-sql/language-elements/transactions-transact-sql
-            rules.add(new SQLMultiWordRule(new String[]{"BEGIN", "DISTRIBUTED", "TRANSACTION"}, keywordToken));
-            rules.add(new SQLMultiWordRule(new String[]{"BEGIN", "DISTRIBUTED", "TRAN"}, keywordToken));
-            rules.add(new SQLMultiWordRule(new String[]{"BEGIN", "TRANSACTION"}, keywordToken));
-            rules.add(new SQLMultiWordRule(new String[]{"BEGIN", "TRAN"}, keywordToken));
+            return new TPRule[]{
+                new SQLMultiWordRule(new String[]{"BEGIN", "DISTRIBUTED", "TRANSACTION"}, keywordToken),
+                new SQLMultiWordRule(new String[]{"BEGIN", "DISTRIBUTED", "TRAN"}, keywordToken),
+                new SQLMultiWordRule(new String[]{"BEGIN", "TRANSACTION"}, keywordToken),
+                new SQLMultiWordRule(new String[]{"BEGIN", "TRAN"}, keywordToken)
+            };
         }
+        return new TPRule[0];
     }
 
     @Override
@@ -394,8 +399,39 @@ public class SQLServerDialect extends JDBCSQLDialect implements TPRuleProvider, 
         return SQLServerConstants.TYPE_VARCHAR + "(max)";
     }
 
+    @NotNull
+    @Override
+    public String getBlobDataType() {
+        return SQLServerConstants.TYPE_IMAGE;
+    }
+
+    @NotNull
+    @Override
+    public String getUuidDataType() {
+        return SQLServerConstants.TYPE_UNIQUEIDENTIFIER;
+    }
+
+    @NotNull
+    @Override
+    public String getBooleanDataType() {
+        return SQLServerConstants.TYPE_BIT;
+    }
+
     @Override
     public boolean needsDefaultDataTypes() {
         return false;
+    }
+
+    @NotNull
+    @Override
+    public String getSchemaExistQuery(@NotNull String schemaName) {
+        // version is at least 2005
+        return "SELECT 1 FROM sys.schemas WHERE name = " + getQuotedString(schemaName);
+    }
+
+    @NotNull
+    @Override
+    public String getCreateSchemaQuery(@NotNull String schemaName) {
+        return "CREATE SCHEMA " + schemaName;
     }
 }

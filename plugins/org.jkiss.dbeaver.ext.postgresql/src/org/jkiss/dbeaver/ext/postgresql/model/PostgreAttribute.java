@@ -172,8 +172,10 @@ public abstract class PostgreAttribute<OWNER extends DBSEntity & PostgreObject> 
                 }
             }
         }
-        //setTypeName(dataType.getTypeName());
-        setValueType(dataType.getTypeID());
+        if (dataType != null) {
+            //setTypeName(dataType.getTypeName());
+            setValueType(dataType.getTypeID());
+        }
         typeMod = JDBCUtils.safeGetInt(dbResult, "atttypmod");
         this.description = JDBCUtils.safeGetString(dbResult, "description");
         this.arrayDim = JDBCUtils.safeGetInt(dbResult, "attndims");
@@ -202,13 +204,7 @@ public abstract class PostgreAttribute<OWNER extends DBSEntity & PostgreObject> 
 
         setPersisted(true);
 
-        if (getTable() instanceof PostgreTable) {
-            PostgreTable postgreTable = (PostgreTable) getTable();
-            if (postgreTable.getDepObjectAttrNumber() == getOrdinalPosition()) {
-                // ID of object which has dependency with this column
-                this.depObjectId = (postgreTable).getDepObjectId();
-            }
-        }
+        this.depObjectId = JDBCUtils.safeGetLong(dbResult, "objid"); // ID of object which has dependency with this column
     }
 
     @NotNull

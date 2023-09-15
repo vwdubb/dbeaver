@@ -167,14 +167,14 @@ public class PostgreProcedure extends AbstractProcedure<PostgreDataSource, Postg
             this.estRows = JDBCUtils.safeGetFloat(dbResult, "prorows");
         }
 
-        Long[] allArgTypes = PostgreUtils.safeGetLongArray(dbResult, "proallargtypes");
+        Number[] allArgTypes = PostgreUtils.safeGetNumberArray(dbResult, "proallargtypes");
         String[] argNames = PostgreUtils.safeGetStringArray(dbResult, "proargnames");
         if (!ArrayUtils.isEmpty(allArgTypes)) {
             String[] argModes = PostgreUtils.safeGetStringArray(dbResult, "proargmodes");
 
             for (int i = 0; i < allArgTypes.length; i++) {
-                Long paramType = allArgTypes[i];
-                final PostgreDataType dataType = container.getDatabase().getDataType(monitor, paramType.intValue());
+                final long paramType = allArgTypes[i].longValue();
+                final PostgreDataType dataType = container.getDatabase().getDataType(monitor, paramType);
                 if (dataType == null) {
                     log.warn("Parameter data type [" + paramType + "] not found");
                     continue;
@@ -250,7 +250,7 @@ public class PostgreProcedure extends AbstractProcedure<PostgreDataSource, Postg
             log.error("Error parsing parameters defaults", e);
         }
 
-        this.overloadedName = makeOverloadedName(getSchema(), getName(), params, false, false);
+        this.overloadedName = makeOverloadedName(getSchema(), getName(), params, false, false, false);
 
         if (dataSource.isServerVersionAtLeast(8, 4)) {
             final long varTypeId = JDBCUtils.safeGetLong(dbResult, "provariadic");
@@ -306,7 +306,17 @@ public class PostgreProcedure extends AbstractProcedure<PostgreDataSource, Postg
             } else if (isWindow) {
                 kind = PostgreProcedureKind.w;
             } else {
-                kind = PostgreProcedureKind.f;
+                boolean isProcedure = false;
+                try {
+                    isProcedure = dbResult.getBoolean("prosp");
+                } catch (SQLException e) {
+                    // Slip then. This column only persist in special cases
+                }
+                if (isProcedure) {
+                    kind = PostgreProcedureKind.p;
+                } else {
+                    kind = PostgreProcedureKind.f;
+                }
             }
         }
     }
@@ -404,7 +414,7 @@ public class PostgreProcedure extends AbstractProcedure<PostgreDataSource, Postg
     @Override
     public void setName(String name) {
         super.setName(name);
-        this.overloadedName = makeOverloadedName(getSchema(), getName(), params, false, false);
+        this.overloadedName = makeOverloadedName(getSchema(), getName(), params, false, false, false);
     }
 
     @Override
@@ -585,7 +595,7 @@ public class PostgreProcedure extends AbstractProcedure<PostgreDataSource, Postg
 
         StringBuilder decl = new StringBuilder();
 
-        String functionSignature = makeOverloadedName(getSchema(), getName(), params, true, true);
+        String functionSignature = makeOverloadedName(getSchema(), getName(), params, true, true, true);
         decl.append("CREATE OR REPLACE ").append(getProcedureTypeName()).append(" ")
             .append(DBUtils.getQuotedIdentifier(getContainer())).append(".")
             .append(functionSignature).append(lineSeparator);
@@ -747,7 +757,14 @@ public class PostgreProcedure extends AbstractProcedure<PostgreDataSource, Postg
         return procVolatile;
     }
 
-    public static String makeOverloadedName(PostgreSchema schema, String name, List<PostgreProcedureParameter> params, boolean quote, boolean showParamNames) {
+    public static String makeOverloadedName(
+        @NotNull PostgreSchema schema,
+        @NotNull String name,
+        @NotNull List<PostgreProcedureParameter> params,
+        boolean quote,
+        boolean showParamNames,
+        boolean forDDL
+    ) {
         final String selfName = (quote ? DBUtils.getQuotedIdentifier(schema.getDataSource(), name) : name);
         final StringJoiner signature = new StringJoiner(", ", "(", ")");
 
@@ -780,6 +797,10 @@ public class PostgreProcedure extends AbstractProcedure<PostgreDataSource, Postg
             } else {
                 parameter.add(dataType.getFullyQualifiedName(DBPEvaluationContext.DDL));
             }
+            String paramDefaultValue = param.getDefaultValue();
+            if (forDDL && CommonUtils.isNotEmpty(paramDefaultValue)) {
+                parameter.add("DEFAULT").add(paramDefaultValue);
+            }
             signature.add(parameter.toString());
         }
 
@@ -796,7 +817,7 @@ public class PostgreProcedure extends AbstractProcedure<PostgreDataSource, Postg
 
     public String getFullQualifiedSignature() {
         return DBUtils.getQuotedIdentifier(getContainer()) + "." +
-            makeOverloadedName(getSchema(), getName(), params, true, false);
+            makeOverloadedName(getSchema(), getName(), params, true, false, false);
     }
 
     public String getProcedureTypeName() {

@@ -44,6 +44,7 @@ import org.jkiss.dbeaver.model.impl.jdbc.cache.JDBCObjectCache;
 import org.jkiss.dbeaver.model.impl.jdbc.struct.JDBCDataType;
 import org.jkiss.dbeaver.model.impl.net.SSLHandlerTrustStoreImpl;
 import org.jkiss.dbeaver.model.impl.sql.QueryTransformerLimit;
+import org.jkiss.dbeaver.model.meta.Association;
 import org.jkiss.dbeaver.model.net.DBWHandlerConfiguration;
 import org.jkiss.dbeaver.model.runtime.DBRProgressMonitor;
 import org.jkiss.dbeaver.model.sql.SQLDialect;
@@ -175,8 +176,8 @@ public class MySQLDataSource extends JDBCDataSource implements DBPObjectStatisti
         if (isMariaDB()) {
             props.put("trustServerCertificate", String.valueOf(!sslConfig.getBooleanProperty(MySQLConstants.PROP_VERIFY_SERVER_SERT)));
         } else {
-            props.put("verifyServerCertificate", sslConfig.getStringProperty(MySQLConstants.PROP_VERIFY_SERVER_SERT));
-            props.put("requireSSL", sslConfig.getStringProperty(MySQLConstants.PROP_REQUIRE_SSL));
+            props.put("verifyServerCertificate", String.valueOf(sslConfig.getBooleanProperty(MySQLConstants.PROP_VERIFY_SERVER_SERT)));
+            props.put("requireSSL", String.valueOf(sslConfig.getBooleanProperty(MySQLConstants.PROP_REQUIRE_SSL)));
         }
 
         {
@@ -358,14 +359,16 @@ public class MySQLDataSource extends JDBCDataSource implements DBPObjectStatisti
             // Read plugins
             {
                 plugins = new ArrayList<>();
-                try (JDBCPreparedStatement dbStat = session.prepareStatement("SHOW PLUGINS")) {
-                    try (JDBCResultSet dbResult = dbStat.executeQuery()) {
-                        while (dbResult.next()) {
-                            plugins.add(new MySQLPlugin(this, dbResult));
+                if (supportsPlugins()) {
+                    try (JDBCPreparedStatement dbStat = session.prepareStatement("SHOW PLUGINS")) {
+                        try (JDBCResultSet dbResult = dbStat.executeQuery()) {
+                            while (dbResult.next()) {
+                                plugins.add(new MySQLPlugin(this, dbResult));
+                            }
                         }
+                    } catch (SQLException e) {
+                        log.debug("Error reading plugins information", e);
                     }
-                } catch (SQLException e) {
-                    log.debug("Error reading plugins information", e);
                 }
             }
 
@@ -773,7 +776,7 @@ public class MySQLDataSource extends JDBCDataSource implements DBPObjectStatisti
         }
     }
 
-    static class CatalogCache extends JDBCObjectCache<MySQLDataSource, MySQLCatalog> {
+    public class CatalogCache extends JDBCObjectCache<MySQLDataSource, MySQLCatalog> {
         @NotNull
         @Override
         protected JDBCStatement prepareObjectsStatement(@NotNull JDBCSession session, @NotNull MySQLDataSource owner) throws SQLException {
@@ -791,9 +794,14 @@ public class MySQLDataSource extends JDBCDataSource implements DBPObjectStatisti
 
         @Override
         protected MySQLCatalog fetchObject(@NotNull JDBCSession session, @NotNull MySQLDataSource owner, @NotNull JDBCResultSet resultSet) throws SQLException, DBException {
-            return new MySQLCatalog(owner, resultSet);
+            return createCatalogInstance(owner, resultSet);
         }
 
+    }
+
+    @NotNull
+    public MySQLCatalog createCatalogInstance(@NotNull MySQLDataSource owner, @NotNull JDBCResultSet resultSet) {
+        return new MySQLCatalog(owner, resultSet);
     }
 
     public boolean isMariaDB() {
@@ -864,4 +872,61 @@ public class MySQLDataSource extends JDBCDataSource implements DBPObjectStatisti
     public boolean supportsColumnStatistics() {
         return !isMariaDB() && isServerVersionAtLeast(8, 0);
     }
+
+    public boolean supportsUserManagement() {
+        return CommonUtils.getBoolean(getContainer().getDriver().getDriverParameter("supports-users"), true);
+    }
+
+    public boolean supportsEvents() {
+        return CommonUtils.getBoolean(getContainer().getDriver().getDriverParameter("supports-events"), true);
+    }
+
+    public boolean supportsAlterView() {
+        return CommonUtils.getBoolean(getContainer().getDriver().getDriverParameter("supports-alter-view"), false);
+    }
+
+    /**
+     * Checks plugins list reading is supported.
+     *
+     * @return {@code true} if plugins list reading is supported
+     */
+    @Association
+    public boolean supportsPlugins() {
+        return CommonUtils.getBoolean(getContainer().getDriver().getDriverParameter("supports-plugins"), true);
+    }
+
+
+    /**
+     * Checks if table partitioning is supported.
+     *
+     * @return {@code true} if table partitioning is supported
+     */
+    @Association
+    public boolean supportsPartitions() {
+        return
+            CommonUtils.getBoolean(getContainer().getDriver().getDriverParameter("supports-partitions"), true) &&
+            isServerVersionAtLeast(5, 1);
+    }
+
+    /**
+     * Returns true if table/catalog triggers are supported.
+     */
+    @Association
+    public boolean supportsTriggers() {
+        return CommonUtils.getBoolean(getContainer().getDriver().getDriverParameter("supports-triggers"), true);
+    }
+
+    public boolean isSystemCatalog(String name) {
+        return MySQLConstants.INFO_SCHEMA_NAME.equalsIgnoreCase(name) ||
+            MySQLConstants.PERFORMANCE_SCHEMA_NAME.equalsIgnoreCase(name) ||
+            MySQLConstants.MYSQL_SCHEMA_NAME.equalsIgnoreCase(name);
+    }
+
+    /**
+     * Checks if it is possible to fetch transform
+     */
+    public boolean supportsFetchTransform() {
+        return CommonUtils.getBoolean(getContainer().getDriver().getDriverParameter("supports-mysql-fetch-transform"), true);
+    }
+
 }

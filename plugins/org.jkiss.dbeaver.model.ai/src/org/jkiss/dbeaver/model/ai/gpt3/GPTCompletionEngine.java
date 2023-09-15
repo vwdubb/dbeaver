@@ -17,11 +17,11 @@
 package org.jkiss.dbeaver.model.ai.gpt3;
 
 import com.google.gson.Gson;
+import com.theokanning.openai.OpenAiHttpException;
 import com.theokanning.openai.completion.CompletionChoice;
 import com.theokanning.openai.completion.CompletionRequest;
 import com.theokanning.openai.completion.chat.ChatCompletionChoice;
 import com.theokanning.openai.completion.chat.ChatCompletionRequest;
-import com.theokanning.openai.completion.chat.ChatCompletionResult;
 import com.theokanning.openai.completion.chat.ChatMessage;
 import com.theokanning.openai.service.OpenAiService;
 import okhttp3.ResponseBody;
@@ -30,6 +30,7 @@ import org.jkiss.code.Nullable;
 import org.jkiss.dbeaver.DBException;
 import org.jkiss.dbeaver.Log;
 import org.jkiss.dbeaver.model.DBPDataSourceContainer;
+import org.jkiss.dbeaver.model.DBPEvaluationContext;
 import org.jkiss.dbeaver.model.DBUtils;
 import org.jkiss.dbeaver.model.ai.AICompletionConstants;
 import org.jkiss.dbeaver.model.ai.AIEngineSettings;
@@ -61,6 +62,8 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.time.Duration;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class GPTCompletionEngine implements DAICompletionEngine {
     private static final Log log = Log.getLog(GPTCompletionEngine.class);
@@ -69,9 +72,13 @@ public class GPTCompletionEngine implements DAICompletionEngine {
     private static final int MAX_REQUEST_ATTEMPTS = 3;
 
     private static final Map<String, OpenAiService> clientInstances = new HashMap<>();
-    private static final int GPT_MODEL_MAX_TOKENS = 2048;
-    private static final int MAX_PROMPT_LENGTH = 7500; // 8000 -
+    private static final int GPT_MODEL_MAX_RESPONSE_TOKENS = 2000;
     private static final boolean SUPPORTS_ATTRS = true;
+
+    private static final Pattern sizeErrorPattern = Pattern.compile("This model's maximum context length is [0-9]+ tokens. "
+        + "\\wowever[, ]+you requested [0-9]+ tokens \\(([0-9]+) in \\w+ \\w+[;,] [0-9]+ \\w+ \\w+ completion\\). "
+        + "Please reduce .+");
+
 
     public GPTCompletionEngine() {
     }
@@ -174,7 +181,8 @@ public class GPTCompletionEngine implements DAICompletionEngine {
             service = initGPTApiClientInstance();
             clientInstances.put(container.getId(), service);
         }
-        String modifiedRequest = addDBMetadataToRequest(monitor, request, executionContext, mainObject);
+        String modifiedRequest = addDBMetadataToRequest(monitor, request, executionContext, mainObject,
+            GPTModel.getByName(getModelName()));
         if (monitor.isCanceled()) {
             return "";
         }
@@ -195,17 +203,40 @@ public class GPTCompletionEngine implements DAICompletionEngine {
 
             try {
                 List<?> choices;
+                int responseSize = GPT_MODEL_MAX_RESPONSE_TOKENS;
                 for (int i = 0; ; i++) {
                     try {
                         choices = getCompletionChoices(service, completionRequest);
                         break;
                     } catch (Exception e) {
-                        if (e instanceof HttpException && ((HttpException) e).code() == 429) {
-                            RuntimeUtils.pause(1000);
+                        if ((e instanceof HttpException && ((HttpException) e).code() == 429)
+                            || (e instanceof OpenAiHttpException && e.getMessage().contains("This model's maximum"))) {
+                            if (e instanceof HttpException) {
+                                RuntimeUtils.pause(1000);
+                            } else {
+                                // Extracts resulted prompt size from the error message and resizes max response to
+                                // value lower that (maxTokens - prompt size)
+                                Matcher matcher = sizeErrorPattern.matcher(e.getMessage());
+                                int promptSize;
+                                if (matcher.find()) {
+                                    String numberStr = matcher.group(1);
+                                    promptSize = CommonUtils.toInt(numberStr);
+                                } else {
+                                    throw e;
+                                }
+                                responseSize = Math.min(responseSize,
+                                    GPTModel.getByName(getModelName()).getMaxTokens() - promptSize - 1);
+                                if (responseSize < 0) {
+                                    throw e;
+                                }
+                                completionRequest = createCompletionRequest(modifiedRequest, responseSize);
+                            }
                             if (i >= MAX_REQUEST_ATTEMPTS - 1) {
                                 throw e;
                             } else {
-                                log.debug("AI service failed. Retry (" + e.getMessage() + ")");
+                                if (e instanceof HttpException) {
+                                    log.debug("AI service failed. Retry (" + e.getMessage() + ")");
+                                }
                                 continue;
                             }
                         }
@@ -287,17 +318,20 @@ public class GPTCompletionEngine implements DAICompletionEngine {
     }
 
     private static Object createCompletionRequest(@NotNull String request) throws DBException {
-        int maxTokens = GPT_MODEL_MAX_TOKENS;
+        return createCompletionRequest(request, GPT_MODEL_MAX_RESPONSE_TOKENS);
+    }
+
+    private static Object createCompletionRequest(@NotNull String request, int responseSize) {
         Double temperature = getPreferenceStore().getDouble(GPTConstants.GPT_MODEL_TEMPERATURE);
         String modelId = getPreferenceStore().getString(GPTConstants.GPT_MODEL);
         GPTModel model = CommonUtils.isEmpty(modelId) ? null : GPTModel.getByName(modelId);
         if (model == null) {
-            model = GPTModel.GPT_TURBO;
+            model = GPTModel.GPT_TURBO16;
         }
         if (model.isChatAPI()) {
-            return buildChatRequest(request, maxTokens, temperature, modelId);
+            return buildChatRequest(request, responseSize, temperature, modelId);
         } else {
-            return buildLegacyAPIRequest(request, maxTokens, temperature, modelId);
+            return buildLegacyAPIRequest(request, responseSize, temperature, modelId);
         }
     }
 
@@ -313,6 +347,7 @@ public class GPTCompletionEngine implements DAICompletionEngine {
             .temperature(temperature)
             .maxTokens(maxTokens)
             .frequencyPenalty(0.0)
+            .n(1)
             .presencePenalty(0.0)
             .stop(List.of("#", ";"))
             .model(modelId)
@@ -335,6 +370,7 @@ public class GPTCompletionEngine implements DAICompletionEngine {
             .maxTokens(maxTokens)
             .frequencyPenalty(0.0)
             .presencePenalty(0.0)
+            .n(1)
             .stop(List.of("#", ";"))
             .model(modelId)
             //.echo(true)
@@ -355,7 +391,8 @@ public class GPTCompletionEngine implements DAICompletionEngine {
         DBRProgressMonitor monitor,
         DAICompletionRequest request,
         DBCExecutionContext executionContext,
-        DBSObjectContainer mainObject
+        DBSObjectContainer mainObject,
+        GPTModel model
     ) throws DBException {
         if (mainObject == null || mainObject.getDataSource() == null || CommonUtils.isEmptyTrimmed(request.getPromptText())) {
             throw new DBException("Invalid completion request");
@@ -372,13 +409,27 @@ public class GPTCompletionEngine implements DAICompletionEngine {
                 tail += "#\n# Current schema is " + defaultSchema.getName() + "\n";
             }
         }
-        int maxRequestLength = MAX_PROMPT_LENGTH - additionalMetadata.length() - tail.length() - 20;
+        int maxRequestLength = model.getMaxTokens() - additionalMetadata.length() - tail.length() - 20 - GPT_MODEL_MAX_RESPONSE_TOKENS;
 
         if (request.getScope() != DAICompletionScope.CUSTOM) {
-            additionalMetadata.append(generateObjectDescription(monitor, request, mainObject, maxRequestLength));
+            additionalMetadata.append(generateObjectDescription(
+                monitor,
+                request,
+                mainObject,
+                executionContext,
+                maxRequestLength,
+                false
+            ));
         } else {
             for (DBSEntity entity : request.getCustomEntities()) {
-                additionalMetadata.append(generateObjectDescription(monitor, request, entity, maxRequestLength));
+                additionalMetadata.append(generateObjectDescription(
+                    monitor,
+                    request,
+                    entity,
+                    executionContext,
+                    maxRequestLength,
+                    isRequiresFullyQualifiedName(entity, executionContext)
+                ));
             }
         }
 
@@ -388,11 +439,23 @@ public class GPTCompletionEngine implements DAICompletionEngine {
         return additionalMetadata.toString();
     }
 
+    private boolean isRequiresFullyQualifiedName(@NotNull DBSObject object, @Nullable DBCExecutionContext context) {
+        if (context == null || context.getContextDefaults() == null) {
+            return false;
+        }
+        DBSObject parent = object.getParentObject();
+        DBCExecutionContextDefaults contextDefaults = context.getContextDefaults();
+        return parent != null && !(parent.equals(contextDefaults.getDefaultCatalog())
+            || parent.equals(contextDefaults.getDefaultSchema()));
+    }
+
     private String generateObjectDescription(
         @NotNull DBRProgressMonitor monitor,
         @NotNull DAICompletionRequest request,
         @NotNull DBSObject object,
-        int maxRequestLength
+        @Nullable DBCExecutionContext context,
+        int maxRequestLength,
+        boolean useFullyQualifiedName
     ) throws DBException {
         if (DBNUtils.getNodeByObject(monitor, object, false) == null) {
             // Skip hidden objects
@@ -400,7 +463,12 @@ public class GPTCompletionEngine implements DAICompletionEngine {
         }
         StringBuilder description = new StringBuilder();
         if (object instanceof DBSEntity) {
-            description.append("# ").append(DBUtils.getQuotedIdentifier(object));
+            String name = useFullyQualifiedName && context != null ? DBUtils.getObjectFullName(
+                context.getDataSource(),
+                object,
+                DBPEvaluationContext.DDL
+            ) : DBUtils.getQuotedIdentifier(object);
+            description.append("# ").append(name);
             description.append("(");
             boolean firstAttr = addPromptAttributes(monitor, (DBSEntity) object, description, true);
             addPromptExtra(monitor, (DBSEntity) object, description, firstAttr);
@@ -416,8 +484,15 @@ public class GPTCompletionEngine implements DAICompletionEngine {
                 if (DBUtils.isSystemObject(child) || DBUtils.isHiddenObject(child) || child instanceof DBSTablePartition) {
                     continue;
                 }
-                String childText = generateObjectDescription(monitor, request, child, maxRequestLength);
-                if (description.length() + childText.length() > maxRequestLength) {
+                String childText = generateObjectDescription(
+                    monitor,
+                    request,
+                    child,
+                    context,
+                    maxRequestLength,
+                    isRequiresFullyQualifiedName(child, context)
+                );
+                if (description.length() + childText.length() > maxRequestLength * 3) {
                     log.debug("Trim GPT metadata prompt  at table '" + child.getName() + "' - too long request");
                     break;
                 }

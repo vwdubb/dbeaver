@@ -25,7 +25,6 @@ import org.eclipse.core.runtime.jobs.JobChangeAdapter;
 import org.eclipse.jface.action.Action;
 import org.eclipse.jface.action.IContributionManager;
 import org.eclipse.jface.action.Separator;
-import org.eclipse.jface.resource.JFaceResources;
 import org.eclipse.jface.viewers.*;
 import org.eclipse.osgi.util.NLS;
 import org.eclipse.swt.SWT;
@@ -175,6 +174,7 @@ public abstract class ObjectListControl<OBJECT_TYPE> extends ProgressPageControl
             TableViewerEditor.create(tableViewer, editorActivationStrategy, ColumnViewerEditor.TABBING_VERTICAL | ColumnViewerEditor.TABBING_HORIZONTAL);
             table.addTraverseListener(traverseListener);
         }
+
         //editorActivationStrategy.setEnableEditorActivationWithKeyboard(true);
         renderer = createRenderer();
         itemsViewer.getColumnViewerEditor().addEditorActivationListener(new EditorActivationListener());
@@ -482,6 +482,8 @@ public abstract class ObjectListControl<OBJECT_TYPE> extends ProgressPageControl
                 }
             }
 
+            addExtraColumns(columnController, items);
+
             if (itemsControl.isDisposed()) {
                 return;
             }
@@ -552,6 +554,10 @@ public abstract class ObjectListControl<OBJECT_TYPE> extends ProgressPageControl
             itemsControl.setRedraw(true);
         }
         setInfo(getItemsLoadMessage(objectList.size()));
+    }
+
+    protected void addExtraColumns(ViewerColumnController<ObjectColumn, Object> columnController, Collection<OBJECT_TYPE> items) {
+
     }
 
     public void appendListData(Collection<OBJECT_TYPE> items) {
@@ -688,6 +694,9 @@ public abstract class ObjectListControl<OBJECT_TYPE> extends ProgressPageControl
     @Nullable
     protected final Object getCellValue(Object element, int columnIndex) {
         final ObjectColumn columnInfo = getColumnByIndex(columnIndex);
+        if (columnInfo == null) {
+            return null;
+        }
         return getCellValue(element, columnInfo, true);
     }
 
@@ -1001,7 +1010,7 @@ public abstract class ObjectListControl<OBJECT_TYPE> extends ProgressPageControl
                 return false;
             }
             ViewerCell cell = (ViewerCell) event.getSource();
-            if (renderer.isHyperlink(getCellValue(cell.getElement(), cell.getColumnIndex())) &&
+            if (renderer.isHyperlink(cell.getElement(), getCellValue(cell.getElement(), cell.getColumnIndex())) &&
                 getItemsViewer().getControl().getCursor() == getItemsViewer().getControl().getDisplay().getSystemCursor(SWT.CURSOR_HAND)) {
                 return false;
             }
@@ -1149,7 +1158,7 @@ public abstract class ObjectListControl<OBJECT_TYPE> extends ProgressPageControl
             if (cellValue instanceof LazyValue) {
                 cellValue = ((LazyValue) cellValue).value;
             }
-            if (forUI && !sampleItems && renderer.isHyperlink(cellValue)) {
+            if (forUI && !sampleItems && renderer.isHyperlink(element, cellValue)) {
                 return EMPTY_STRING; //$NON-NLS-1$
             }
             if (element instanceof ObjectsGroupingWrapper) {
@@ -1247,6 +1256,9 @@ public abstract class ObjectListControl<OBJECT_TYPE> extends ProgressPageControl
                 case SWT.PaintItem:
                     if (e.index < columnController.getColumnsCount()) {
                         final ObjectColumn objectColumn = getColumnByIndex(e.index);
+                        if (objectColumn == null) {
+                            return;
+                        }
                         final OBJECT_TYPE object = (OBJECT_TYPE) e.item.getData();
                         final boolean isFocusCell = focusObject == object && focusColumn == objectColumn;
 

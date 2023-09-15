@@ -368,7 +368,9 @@ public class ObjectPropertiesEditor extends AbstractDatabaseObjectEditor<DBSObje
     {
         // do not force focus in active editor. We can't do it properly because folderComposite detects
         // active folder by focus (which it doesn't have)
-        if (folderComposite != null) {
+        // If accessibility is active, set focus to the page control rather the active editor so
+        // the tab names can be read correctly
+        if (folderComposite != null && !EditorAccessibleAdapter.isActive(folderComposite.getParent())) {
             ITabbedFolder selectedPage = folderComposite.getActiveFolder();
             if (selectedPage != null) {
                 selectedPage.setFocus();
@@ -781,7 +783,7 @@ public class ObjectPropertiesEditor extends AbstractDatabaseObjectEditor<DBSObje
     private class ReadExpensivePropsAction extends Action {
         private final DBSObject databaseObject;
         ReadExpensivePropsAction(DBSObject databaseObject) {
-            super("Read row count and other expensive properties", AS_CHECK_BOX);
+            super(UINavigatorMessages.editors_entity_read_expensive_props_action, AS_CHECK_BOX);
             setImageDescriptor(DBeaverIcons.getImageDescriptor(UIIcon.OBJ_REFRESH));
             this.databaseObject = databaseObject;
         }

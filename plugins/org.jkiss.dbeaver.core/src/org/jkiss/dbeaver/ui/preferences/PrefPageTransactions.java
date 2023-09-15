@@ -18,8 +18,12 @@
 package org.jkiss.dbeaver.ui.preferences;
 
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.widgets.*;
+import org.eclipse.ui.dialogs.PreferenceLinkArea;
+import org.eclipse.ui.preferences.IWorkbenchPreferenceContainer;
 import org.jkiss.code.NotNull;
 import org.jkiss.dbeaver.ModelPreferences;
 import org.jkiss.dbeaver.core.CoreMessages;
@@ -71,12 +75,40 @@ public class PrefPageTransactions extends TargetPrefPage
     @Override
     protected Control createPreferenceContent(@NotNull Composite parent) {
         Composite composite = UIUtils.createPlaceholder(parent, 1, 5);
-        {
-            Group txnNameGroup = UIUtils.createControlGroup(composite, CoreMessages.dialog_connection_edit_wizard_transactions, 2, GridData.FILL_HORIZONTAL, 0);
-            smartCommitCheck = UIUtils.createCheckbox(txnNameGroup, CoreMessages.action_menu_transaction_smart_auto_commit, CoreMessages.action_menu_transaction_smart_auto_commit_tip, false, 2);
-            smartCommitRecoverCheck = UIUtils.createCheckbox(txnNameGroup, CoreMessages.action_menu_transaction_smart_auto_commit_recover, CoreMessages.action_menu_transaction_smart_auto_commit_recover_tip, false, 2);
+        boolean dataSourcePreferencePage = isDataSourcePreferencePage();
+        Group txnNameGroup = UIUtils.createControlGroup(
+            composite,
+            CoreMessages.dialog_connection_edit_wizard_transactions,
+            2,
+            GridData.FILL_HORIZONTAL,
+            0);
+        String settingsTipString;
+        if (dataSourcePreferencePage) {
+            smartCommitCheck = UIUtils.createCheckbox(
+                txnNameGroup,
+                CoreMessages.action_menu_transaction_smart_auto_commit,
+                CoreMessages.action_menu_transaction_smart_auto_commit_tip,
+                false,
+                2);
+            smartCommitCheck.addSelectionListener(new SelectionAdapter() {
+                @Override
+                public void widgetSelected(SelectionEvent e) {
+                    updateButtons();
+                }
+            });
+            smartCommitRecoverCheck = UIUtils.createCheckbox(
+                txnNameGroup,
+                CoreMessages.action_menu_transaction_smart_auto_commit_recover,
+                CoreMessages.action_menu_transaction_smart_auto_commit_recover_tip,
+                false,
+                2);
 
-            autoCloseTransactionsCheck = UIUtils.createCheckbox(txnNameGroup, CoreMessages.action_menu_transaction_auto_close_enabled, CoreMessages.action_menu_transaction_auto_close_enabled_tip, false, 1);
+            autoCloseTransactionsCheck = UIUtils.createCheckbox(
+                txnNameGroup,
+                CoreMessages.action_menu_transaction_auto_close_enabled,
+                CoreMessages.action_menu_transaction_auto_close_enabled_tip,
+                true,
+                1);
             autoCloseTransactionsTtlText = new Text(txnNameGroup, SWT.BORDER);
             autoCloseTransactionsTtlText.setToolTipText(CoreMessages.action_menu_transaction_auto_close_ttl_tip);
             autoCloseTransactionsTtlText.addVerifyListener(UIUtils.getIntegerVerifyListener(Locale.ENGLISH));
@@ -84,6 +116,8 @@ public class PrefPageTransactions extends TargetPrefPage
             GridData gd = new GridData();
             gd.widthHint = UIUtils.getFontHeight(autoCloseTransactionsTtlText) * 6;
             autoCloseTransactionsTtlText.setLayoutData(gd);
+
+            settingsTipString = CoreMessages.action_menu_transaction_pref_page_link_extended;
 
 /*
             autoCloseTransactionsCheck.addSelectionListener(new SelectionAdapter() {
@@ -93,7 +127,14 @@ public class PrefPageTransactions extends TargetPrefPage
                 }
             });
 */
+        } else {
+            settingsTipString = CoreMessages.action_menu_transaction_pref_page_link;
         }
+
+        new PreferenceLinkArea(txnNameGroup, SWT.NONE,
+            PrefPageConnectionTypes.PAGE_ID,
+            settingsTipString,
+            (IWorkbenchPreferenceContainer) getContainer(), null);
 
         {
             Group notifyNameGroup = UIUtils.createControlGroup(
@@ -110,14 +151,33 @@ public class PrefPageTransactions extends TargetPrefPage
         return composite;
     }
 
+    private void updateButtons() {
+        if (!smartCommitCheck.getSelection()) {
+            // Works only with the smart commit mode
+            smartCommitRecoverCheck.setEnabled(false);
+            smartCommitRecoverCheck.setSelection(false);
+        } else if (!smartCommitRecoverCheck.isEnabled()) {
+            smartCommitRecoverCheck.setEnabled(true);
+        }
+    }
+
     @Override
     protected void loadPreferences(DBPPreferenceStore store)
     {
         try {
-            smartCommitCheck.setSelection(store.getBoolean(ModelPreferences.TRANSACTIONS_SMART_COMMIT));
-            smartCommitRecoverCheck.setSelection(store.getBoolean(ModelPreferences.TRANSACTIONS_SMART_COMMIT_RECOVER));
-            autoCloseTransactionsCheck.setSelection(store.getBoolean(ModelPreferences.TRANSACTIONS_AUTO_CLOSE_ENABLED));
-            autoCloseTransactionsTtlText.setText(store.getString(ModelPreferences.TRANSACTIONS_AUTO_CLOSE_TTL));
+            if (smartCommitCheck != null) {
+                smartCommitCheck.setSelection(store.getBoolean(ModelPreferences.TRANSACTIONS_SMART_COMMIT));
+            }
+            if (smartCommitRecoverCheck != null) {
+                smartCommitRecoverCheck.setSelection(store.getBoolean(ModelPreferences.TRANSACTIONS_SMART_COMMIT_RECOVER));
+                if (smartCommitCheck != null) {
+                    updateButtons();
+                }
+            }
+            if (autoCloseTransactionsCheck != null) {
+                autoCloseTransactionsCheck.setSelection(store.getBoolean(ModelPreferences.TRANSACTIONS_AUTO_CLOSE_ENABLED));
+                autoCloseTransactionsTtlText.setText(store.getString(ModelPreferences.TRANSACTIONS_AUTO_CLOSE_TTL));
+            }
             //autoCloseTransactionsTtlText.setEnabled(autoCloseTransactionsCheck.getSelection());
 
             showTransactionNotificationsCheck.setSelection(store.getBoolean(ModelPreferences.TRANSACTIONS_SHOW_NOTIFICATIONS));
@@ -130,10 +190,16 @@ public class PrefPageTransactions extends TargetPrefPage
     protected void savePreferences(DBPPreferenceStore store)
     {
         try {
-            store.setValue(ModelPreferences.TRANSACTIONS_SMART_COMMIT, smartCommitCheck.getSelection());
-            store.setValue(ModelPreferences.TRANSACTIONS_SMART_COMMIT_RECOVER, smartCommitRecoverCheck.getSelection());
-            store.setValue(ModelPreferences.TRANSACTIONS_AUTO_CLOSE_ENABLED, autoCloseTransactionsCheck.getSelection());
-            store.setValue(ModelPreferences.TRANSACTIONS_AUTO_CLOSE_TTL, autoCloseTransactionsTtlText.getText());
+            if (smartCommitCheck != null) {
+                store.setValue(ModelPreferences.TRANSACTIONS_SMART_COMMIT, smartCommitCheck.getSelection());
+            }
+            if (smartCommitRecoverCheck != null) {
+                store.setValue(ModelPreferences.TRANSACTIONS_SMART_COMMIT_RECOVER, smartCommitRecoverCheck.getSelection());
+            }
+            if (autoCloseTransactionsCheck != null) {
+                store.setValue(ModelPreferences.TRANSACTIONS_AUTO_CLOSE_ENABLED, autoCloseTransactionsCheck.getSelection());
+                store.setValue(ModelPreferences.TRANSACTIONS_AUTO_CLOSE_TTL, autoCloseTransactionsTtlText.getText());
+            }
 
             store.setValue(ModelPreferences.TRANSACTIONS_SHOW_NOTIFICATIONS, showTransactionNotificationsCheck.getSelection());
         } catch (Exception e) {

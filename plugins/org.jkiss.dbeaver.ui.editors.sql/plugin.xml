@@ -723,9 +723,9 @@
         <key commandId="org.jkiss.dbeaver.ui.editors.sql.show.output" contextId="org.jkiss.dbeaver.ui.editors.sql.script" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="CTRL+SHIFT+O"/>
         <!-- <key commandId="org.jkiss.dbeaver.ui.editors.sql.show.log" contextId="org.jkiss.dbeaver.ui.editors.sql.script" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration"/> -->
 
-        <key commandId="org.jkiss.dbeaver.ui.editors.sql.toggle.result.panel" contextId="org.jkiss.dbeaver.ui.editors.sql.script" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="CTRL+6"/>
-        <key commandId="org.jkiss.dbeaver.ui.editors.sql.maximize.result.panel" contextId="org.jkiss.dbeaver.ui.editors.sql.script" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="CTRL+SHIFT+6"/>
-        <key commandId="org.jkiss.dbeaver.ui.editors.sql.switch.panel" contextId="org.jkiss.dbeaver.ui.editors.sql.script" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="ALT+6"/>
+        <key commandId="org.jkiss.dbeaver.ui.editors.sql.toggle.result.panel" contextId="org.jkiss.dbeaver.ui.editors.sql.script" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="CTRL+T"/>
+        <key commandId="org.jkiss.dbeaver.ui.editors.sql.maximize.result.panel" contextId="org.jkiss.dbeaver.ui.editors.sql.script" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="CTRL+SHIFT+T"/>
+        <key commandId="org.jkiss.dbeaver.ui.editors.sql.switch.panel" contextId="org.jkiss.dbeaver.ui.editors.sql.script" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="CTRL+ALT+T"/>
         <!--<key commandId="org.jkiss.dbeaver.ui.editors.sql.assist.templates" contextId="org.jkiss.dbeaver.ui.editors.sql" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="CTRL+ALT+SPACE"/>-->
         <key commandId="org.jkiss.dbeaver.ui.editors.sql.open.file" contextId="org.jkiss.dbeaver.ui.editors.sql" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="CTRL+ALT+SHIFT+O"/>
 
@@ -743,7 +743,7 @@
         <key commandId="org.jkiss.dbeaver.core.sql.editor.create" contextId="org.jkiss.dbeaver.ui.perspective" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="CTRL+F3"/>
         <key commandId="org.jkiss.dbeaver.core.sql.editor.create" contextId="org.jkiss.dbeaver.ui.perspective" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="CTRL+]"/>
 
-        <key commandId="org.jkiss.dbeaver.ui.editors.sql.gotoMatchingBracket" contextId="org.jkiss.dbeaver.ui.editors.sql" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="CTRL+SHIFT+P"/>
+        <key commandId="org.jkiss.dbeaver.ui.editors.sql.gotoMatchingBracket" contextId="org.jkiss.dbeaver.ui.editors.sql" schemeId="org.eclipse.ui.defaultAcceleratorConfiguration" sequence="CTRL+SHIFT+["/>
     </extension>
 
     <extension point="org.eclipse.ui.menus">
@@ -1343,15 +1343,44 @@
         <keyword id="org.jkiss.dbeaver.pref.keyword.sql.sqleditor" label="%keyword.org.jkiss.dbeaver.pref.keyword.sql.sqleditor.label"/>
     </extension>
 
-<!--
-    <extension point="org.eclipse.ui.perspectiveExtensions">
-        <perspectiveExtension targetID="org.jkiss.dbeaver.core.perspective">
-            <hiddenToolBarItem id="org.jkiss.dbeaver.core.sql.editor.open"/>
-            <hiddenToolBarItem id="org.jkiss.dbeaver.core.sql.editor.create"/>
-            <hiddenToolBarItem id="org.jkiss.dbeaver.core.sql.editor.console"/>
-        </perspectiveExtension>
+    <extension point="org.jkiss.dbeaver.ui.dataSourceConfigurator">
+        <dataSourceConfigurator>
+            <dataSourcePage
+                id="sql-editor.main"
+                after="data-editor-main"
+                class="org.jkiss.dbeaver.ui.editors.sql.preferences.PrefPageSQLEditor"
+                title="%page.org.jkiss.dbeaver.preferences.main.sqleditor.name"
+                description="%page.org.jkiss.dbeaver.preferences.main.sqleditor.description"/>
+            <dataSourcePage
+                id="sql-editor.completion"
+                parent="sql-editor.main"
+                class="org.jkiss.dbeaver.ui.editors.sql.preferences.PrefPageSQLCompletion"
+                title="%page.org.jkiss.dbeaver.preferences.main.sql.completion.name"
+                description="%page.org.jkiss.dbeaver.preferences.main.sql.completion.description"/>
+            <dataSourcePage
+                id="sql-editor.format"
+                parent="sql-editor.main"
+                class="org.jkiss.dbeaver.ui.editors.sql.preferences.PrefPageSQLFormat"
+                title="%page.org.jkiss.dbeaver.preferences.main.sql.format.name"
+                description="%page.org.jkiss.dbeaver.preferences.main.sql.format.description"/>
+            <dataSourcePage
+                id="sql-editor.execute"
+                parent="sql-editor.main"
+                class="org.jkiss.dbeaver.ui.editors.sql.preferences.PrefPageSQLExecute"
+                title="%page.org.jkiss.dbeaver.preferences.main.sqlexecute.name"
+                description="%page.org.jkiss.dbeaver.preferences.main.sqlexecute.description"/>
+        </dataSourceConfigurator>
     </extension>
--->
+
+    <!--
+        <extension point="org.eclipse.ui.perspectiveExtensions">
+            <perspectiveExtension targetID="org.jkiss.dbeaver.core.perspective">
+                <hiddenToolBarItem id="org.jkiss.dbeaver.core.sql.editor.open"/>
+                <hiddenToolBarItem id="org.jkiss.dbeaver.core.sql.editor.create"/>
+                <hiddenToolBarItem id="org.jkiss.dbeaver.core.sql.editor.console"/>
+            </perspectiveExtension>
+        </extension>
+    -->
 
     <extension id="databaseScriptProblemMarker" name="%databaseScriptProblem.name" point="org.eclipse.core.resources.markers">
         <super type="org.eclipse.core.resources.problemmarker"/>
@@ -1419,4 +1448,5 @@
             <item commandId="org.jkiss.dbeaver.ui.editors.sql.show.variables" defaultVisibility="true"/>
         </toolBar>
     </extension>
+
 </plugin>

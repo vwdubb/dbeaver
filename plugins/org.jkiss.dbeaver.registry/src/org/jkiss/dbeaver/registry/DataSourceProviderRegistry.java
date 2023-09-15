@@ -22,6 +22,7 @@ import org.eclipse.core.runtime.Platform;
 import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.jkiss.dbeaver.Log;
+import org.jkiss.dbeaver.model.DBConfigurationController;
 import org.jkiss.dbeaver.model.DBPDataSourceContainer;
 import org.jkiss.dbeaver.model.DBPDataSourceOriginProvider;
 import org.jkiss.dbeaver.model.DBPDataSourcePermission;
@@ -292,7 +293,14 @@ public class DataSourceProviderRegistry implements DBPDataSourceProviderRegistry
         }
     }
 
-    public void dispose() {
+    public static void dispose() {
+        if (instance != null) {
+            instance.dispose0();
+            instance = null;
+        }
+    }
+
+    private void dispose0() {
         synchronized (registryListeners) {
             if (!registryListeners.isEmpty()) {
                 log.warn("Some datasource registry listeners are still registered: " + registryListeners);
@@ -444,12 +452,17 @@ public class DataSourceProviderRegistry implements DBPDataSourceProviderRegistry
     }
 
     public void saveDrivers() {
+        saveDrivers(DBWorkbench.getPlatform().getConfigurationController());
+    }
+
+    public void saveDrivers(DBConfigurationController configurationController) {
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             new DriverDescriptorSerializerLegacy().serializeDrivers(baos, this.dataSourceProviders);
-            DBWorkbench.getPlatform().getConfigurationController().saveConfigurationFile(
+            configurationController.saveConfigurationFile(
                 DriverDescriptorSerializerLegacy.DRIVERS_FILE_NAME,
-                baos.toString(StandardCharsets.UTF_8));
+                baos.toString(StandardCharsets.UTF_8)
+            );
         } catch (Exception ex) {
             log.error("Error saving drivers", ex);
         }
@@ -534,7 +547,10 @@ public class DataSourceProviderRegistry implements DBPDataSourceProviderRegistry
                 xml.addAttribute(RegistryConstants.ATTR_AUTOCOMMIT, connectionType.isAutocommit());
                 xml.addAttribute(RegistryConstants.ATTR_CONFIRM_EXECUTE, connectionType.isConfirmExecute());
                 xml.addAttribute(RegistryConstants.ATTR_CONFIRM_DATA_CHANGE, connectionType.isConfirmDataChange());
+                xml.addAttribute(RegistryConstants.ATTR_SMART_COMMIT, connectionType.isSmartCommit());
+                xml.addAttribute(RegistryConstants.ATTR_SMART_COMMIT_RECOVER, connectionType.isSmartCommitRecover());
                 xml.addAttribute(RegistryConstants.ATTR_AUTO_CLOSE_TRANSACTIONS, connectionType.isAutoCloseTransactions());
+                xml.addAttribute(RegistryConstants.ATTR_CLOSE_TRANSACTIONS_PERIOD, connectionType.getCloseIdleConnectionPeriod());
                 List<DBPDataSourcePermission> modifyPermission = connectionType.getModifyPermission();
                 if (modifyPermission != null) {
                     xml.addAttribute("modifyPermission",
@@ -596,7 +612,11 @@ public class DataSourceProviderRegistry implements DBPDataSourceProviderRegistry
     public List<? extends DBPAuthModelDescriptor> getApplicableAuthModels(DBPDriver driver) {
         List<DataSourceAuthModelDescriptor> models = new ArrayList<>();
         List<String> replaced = new ArrayList<>();
+        boolean desktopMode = !DBWorkbench.getPlatform().getApplication().isHeadlessMode();
         for (DataSourceAuthModelDescriptor amd : authModels.values()) {
+            if (desktopMode && amd.isCloudModel()) {
+                continue;
+            }
             if (amd.appliesTo(driver)) {
                 models.add(amd);
                 replaced.addAll(amd.getReplaces(driver));
@@ -671,7 +691,18 @@ public class DataSourceProviderRegistry implements DBPDataSourceProviderRegistry
                     CommonUtils.getBoolean(atts.getValue(RegistryConstants.ATTR_AUTOCOMMIT), origType != null && origType.isAutocommit()),
                     CommonUtils.getBoolean(atts.getValue(RegistryConstants.ATTR_CONFIRM_EXECUTE), origType != null && origType.isConfirmExecute()),
                     CommonUtils.getBoolean(atts.getValue(RegistryConstants.ATTR_CONFIRM_DATA_CHANGE), origType != null && origType.isConfirmDataChange()),
-                    CommonUtils.getBoolean(atts.getValue(RegistryConstants.ATTR_AUTO_CLOSE_TRANSACTIONS), origType != null && origType.isAutoCloseTransactions()));
+                    CommonUtils.getBoolean(
+                        atts.getValue(RegistryConstants.ATTR_SMART_COMMIT),
+                        origType != null && origType.isSmartCommit()),
+                    CommonUtils.getBoolean(
+                        atts.getValue(RegistryConstants.ATTR_SMART_COMMIT_RECOVER),
+                        origType != null && origType.isSmartCommitRecover()),
+                    CommonUtils.getBoolean(
+                        atts.getValue(RegistryConstants.ATTR_AUTO_CLOSE_TRANSACTIONS),
+                        origType != null && origType.isAutoCloseTransactions()),
+                    CommonUtils.toLong(
+                        atts.getValue(RegistryConstants.ATTR_CLOSE_TRANSACTIONS_PERIOD),
+                        origType != null ? origType.getCloseIdleConnectionPeriod() : RegistryConstants.DEFAULT_IDLE_TRANSACTION_PERIOD));
                 String modifyPermissionList = atts.getValue("modifyPermission");
                 if (!CommonUtils.isEmpty(modifyPermissionList)) {
                     List<DBPDataSourcePermission> permList = new ArrayList<>();

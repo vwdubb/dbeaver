@@ -47,7 +47,6 @@ import org.jkiss.dbeaver.ui.dialogs.connection.DriverPropertiesDialogPage;
 import org.jkiss.dbeaver.ui.internal.UIConnectionMessages;
 import org.jkiss.utils.CommonUtils;
 
-import java.util.List;
 import java.util.Locale;
 
 /**
@@ -280,7 +279,7 @@ public class PostgreConnectionPage extends ConnectionPageWithAuth implements IDi
         if (homesSelector != null) {
             connectionInfo.setClientHomeId(homesSelector.getSelectedHome());
         }
-        if (typeURLRadio.getSelection()) {
+        if (typeURLRadio != null && typeURLRadio.getSelection()) {
             connectionInfo.setUrl(urlText.getText());
         }
 

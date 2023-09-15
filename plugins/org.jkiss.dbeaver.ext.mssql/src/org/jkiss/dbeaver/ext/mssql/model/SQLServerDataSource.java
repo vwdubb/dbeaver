@@ -18,8 +18,10 @@ package org.jkiss.dbeaver.ext.mssql.model;
 
 import net.sf.jsqlparser.expression.NextValExpression;
 import net.sf.jsqlparser.statement.Statement;
-import net.sf.jsqlparser.statement.select.*;
-import org.eclipse.core.runtime.IAdaptable;
+import net.sf.jsqlparser.statement.select.PlainSelect;
+import net.sf.jsqlparser.statement.select.Select;
+import net.sf.jsqlparser.statement.select.SelectBody;
+import net.sf.jsqlparser.statement.select.SelectExpressionItem;
 import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.jkiss.dbeaver.DBException;
@@ -57,7 +59,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Properties;
 
-public class SQLServerDataSource extends JDBCDataSource implements DBSInstanceContainer, DBPObjectStatisticsCollector, IAdaptable, DBCQueryTransformProviderExt {
+public class SQLServerDataSource extends JDBCDataSource implements DBSInstanceContainer, DBPObjectStatisticsCollector, DBPAdaptable, DBCQueryTransformProviderExt {
 
     private static final Log log = Log.getLog(SQLServerDataSource.class);
 
@@ -620,7 +622,12 @@ public class SQLServerDataSource extends JDBCDataSource implements DBSInstanceCo
 
         @Override
         protected SQLServerDatabase fetchObject(@NotNull JDBCSession session, @NotNull SQLServerDataSource owner, @NotNull JDBCResultSet resultSet) throws SQLException, DBException {
-            return new SQLServerDatabase(session, owner, resultSet);
+            String databaseName = JDBCUtils.safeGetString(resultSet, "name");
+            if (CommonUtils.isEmpty(databaseName)) {
+                log.debug("Empty database name fetched");
+                return null;
+            }
+            return new SQLServerDatabase(session, owner, resultSet, databaseName);
         }
 
     }

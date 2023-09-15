@@ -58,7 +58,6 @@ import org.jkiss.dbeaver.utils.RuntimeUtils;
 import org.jkiss.utils.CommonUtils;
 
 import java.lang.reflect.InvocationTargetException;
-import java.util.Iterator;
 import java.util.Map;
 
 public class NavigatorHandlerObjectOpen extends NavigatorHandlerObjectBase implements IElementUpdater {
@@ -78,13 +77,14 @@ public class NavigatorHandlerObjectOpen extends NavigatorHandlerObjectBase imple
         if (selection instanceof IStructuredSelection) {
             final IStructuredSelection structSelection = (IStructuredSelection)selection;
             if (structSelection.size() > MAX_OBJECT_SIZE_NO_CONFIRM) {
-                if (!UIUtils.confirmAction(HandlerUtil.getActiveShell(event), "Open " + structSelection.size() + " editors",
-                    "You are about to open " + structSelection.size() + " editors. Are you sure?")) {
+                if (!UIUtils.confirmAction(HandlerUtil.getActiveShell(event),
+                    NLS.bind(UINavigatorMessages.actions_navigator_open_editors_title, structSelection.size()),
+                    NLS.bind(UINavigatorMessages.actions_navigator_open_editors_question,
+                        structSelection.size()))) {
                     return null;
                 }
             }
-            for (Iterator<?> iter = structSelection.iterator(); iter.hasNext(); ) {
-                Object element = iter.next();
+            for (Object element : structSelection) {
                 DBNNode node = null;
                 if (element instanceof IResource) {
                     UIServiceSQL serviceSQL = DBWorkbench.getService(UIServiceSQL.class);
@@ -93,7 +93,7 @@ public class NavigatorHandlerObjectOpen extends NavigatorHandlerObjectBase imple
                     }
                     continue;
                 } else if (element instanceof DBNNode) {
-                    node = (DBNNode)element;
+                    node = (DBNNode) element;
                 } else {
                     DBSObject object = RuntimeUtils.getObjectAdapter(element, DBSObject.class);
                     if (object != null) {

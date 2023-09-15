@@ -23,13 +23,11 @@ import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.jkiss.dbeaver.Log;
 import org.jkiss.dbeaver.model.exec.DBCException;
-import org.jkiss.dbeaver.model.runtime.DBRRunnableContext;
-import org.jkiss.dbeaver.runtime.serialize.DBPObjectSerializer;
-import org.jkiss.dbeaver.runtime.serialize.SerializerRegistry;
 import org.jkiss.utils.CommonUtils;
 
 import java.io.IOException;
 import java.io.Reader;
+import java.sql.Timestamp;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAccessor;
@@ -41,6 +39,8 @@ import java.util.*;
  */
 public class JSONUtils {
 
+    public static final String DEFAULT_INDENT = "\t";
+    public static final String EMPTY_INDENT = "";
     private static final Log log = Log.getLog(JSONUtils.class);
 
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter
@@ -169,17 +169,25 @@ public class JSONUtils {
     }
 
     public static void serializeStringList(@NotNull JsonWriter json, @NotNull String tagName, @Nullable Collection<String> list) throws IOException {
-        serializeStringList(json, tagName, list, false);
+        serializeStringList(json, tagName, list, true, false);
     }
 
-    public static void serializeStringList(@NotNull JsonWriter json, @NotNull String tagName, @Nullable Collection<String> list, boolean force) throws IOException {
+    public static void serializeStringList(
+        @NotNull JsonWriter json,
+        @NotNull String tagName,
+        @Nullable Collection<String> list,
+        boolean compact,
+        boolean force
+    ) throws IOException {
         if (force || !CommonUtils.isEmpty(list)) {
             json.name(tagName);
             json.beginArray();
+            if (compact) json.setIndent(EMPTY_INDENT);
             for (String include : CommonUtils.safeCollection(list)) {
                 json.value(include);
             }
             json.endArray();
+            if (compact) json.setIndent(DEFAULT_INDENT);
         }
     }
 
@@ -268,33 +276,6 @@ public class JSONUtils {
         json.endObject();
     }
 
-    public static <OBJECT_CONTEXT, OBJECT_TYPE> Map<String, Object> serializeObject(DBRRunnableContext runnableContext, OBJECT_CONTEXT context, @NotNull OBJECT_TYPE object) {
-        DBPObjectSerializer<OBJECT_CONTEXT, OBJECT_TYPE> serializer = SerializerRegistry.getInstance().createSerializer(object);
-        if (serializer == null) {
-            log.error("No serializer found for object " + object.getClass().getName());
-            return null;
-        }
-        Map<String, Object> state = new LinkedHashMap<>();
-
-        Map<String, Object> location = new LinkedHashMap<>();
-        serializer.serializeObject(runnableContext, context, object, location);
-        state.put("type", SerializerRegistry.getInstance().getObjectType(object));
-        state.put("location", location);
-
-        return state;
-    }
-
-    public static <OBJECT_CONTEXT, OBJECT_TYPE> Object deserializeObject(@NotNull DBRRunnableContext runnableContext,  OBJECT_CONTEXT objectContext, @NotNull Map<String, Object> objectConfig) throws DBCException {
-        String typeID = CommonUtils.toString(objectConfig.get("type"));
-        DBPObjectSerializer<OBJECT_CONTEXT, OBJECT_TYPE> serializer = SerializerRegistry.getInstance().createSerializerByType(typeID);
-        if (serializer == null) {
-            log.error("No deserializer found for type " + typeID);
-            return null;
-        }
-        Map<String, Object> location = getObject(objectConfig, "location");
-        return serializer.deserializeObject(runnableContext, objectContext, location);
-    }
-
     public static <OBJECT_TYPE> OBJECT_TYPE deserializeObject(Map<String, Object> map, @NotNull Class<OBJECT_TYPE> type) throws DBCException {
         Gson gson = new Gson();
         String json = gson.toJson(map);
@@ -351,6 +332,28 @@ public class JSONUtils {
     public static String getString(Map<String, Object> map, String name, String defValue) {
         Object value = map.get(name);
         return value == null ? defValue : value.toString();
+    }
+
+    /**
+     * Returns timestamp value from the attributes map, if map contains key
+     *
+     * @param attributes Attributes map
+     * @param name Name of the attribute
+     * @return timestamp from the given string value
+     */
+    @NotNull
+    public static Timestamp getTimestamp(@NotNull Map<String, Object> attributes, @NotNull String name) {
+        if (attributes.containsKey(name)) {
+            try {
+                long inst = getLong(attributes, name, 0);
+                if (inst != 0) {
+                    return Timestamp.from(Instant.ofEpochMilli(inst));
+                }
+            } catch (Exception e) {
+                log.debug("Can't parse timestamp value from " + name);
+            }
+        }
+        return new Timestamp(0);
     }
 
     public static boolean getBoolean(Map<String, Object> map, String name) {

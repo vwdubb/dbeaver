@@ -307,11 +307,12 @@ public class DBNResource extends DBNNode implements DBNNodeWithResource, DBNStre
         }
         try {
             refreshFileStore(monitor);
-            resource.refreshLocal(IResource.DEPTH_INFINITE, monitor.getNestedMonitor());
+            IResource clResource = getContentLocationResource();
+            clResource.refreshLocal(IResource.DEPTH_INFINITE, monitor.getNestedMonitor());
 
-            IPath resourceLocation = resource.getLocation();
+            IPath resourceLocation = clResource.getLocation();
             if (resourceLocation != null && !resourceLocation.toFile().exists()) {
-                log.debug("Resource '" + resource.getName() + "' doesn't exists on file system");
+                log.debug("Resource '" + clResource.getName() + "' doesn't exists on file system");
                 //resource.delete(true, monitor.getNestedMonitor());
             }
         } catch (CoreException e) {
@@ -448,6 +449,14 @@ public class DBNResource extends DBNNode implements DBNNodeWithResource, DBNStre
                 return Status.OK_STATUS;
             }
         }.schedule();
+    }
+
+    public boolean supportsPaste(@NotNull DBNNode other) {
+        return false;
+    }
+
+    public void pasteNodes(@NotNull Collection<DBNNode> nodes) throws DBException {
+        throw new DBException("Paste is not supported");
     }
 
     @Override

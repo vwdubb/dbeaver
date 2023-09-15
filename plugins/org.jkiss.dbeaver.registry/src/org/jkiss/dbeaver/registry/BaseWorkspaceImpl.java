@@ -42,8 +42,11 @@ import org.jkiss.utils.SecurityUtils;
 
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.util.*;
 
 /**
@@ -280,13 +283,52 @@ public abstract class BaseWorkspaceImpl implements DBPWorkspaceEclipse {
                 Math.abs(SecurityUtils.generateRandomLong()),
                 36).toUpperCase();
             workspaceInfo.setProperty(WORKSPACE_ID, workspaceId);
-            BaseWorkspaceImpl.writeWorkspaceInfo(GeneralUtils.getMetadataFolder(), workspaceInfo);
         }
-        return workspaceId;
+        return workspaceId + "-" + getLocalHostId();
+    }
+
+    private static String getLocalHostId() {
+        // Here we get local machine identifier. It is hashed and thus depersonalized
+        try {
+            InetAddress localHost = InetAddress.getLocalHost();
+            NetworkInterface ni = NetworkInterface.getByInetAddress(localHost);
+            if (ni == null || ni.getHardwareAddress() == null) {
+                Enumeration<NetworkInterface> niEnum = NetworkInterface.getNetworkInterfaces();
+                while (niEnum.hasMoreElements()) {
+                    ni = niEnum.nextElement();
+                    if (ni.getHardwareAddress() != null) {
+                        break;
+                    }
+                }
+            }
+            if (ni == null) {
+                log.debug("Cannot detect local network interface");
+                return "NOMACADDR";
+            }
+            byte[] hardwareAddress = ni.getHardwareAddress();
+
+            // Use MD5
+            MessageDigest md = MessageDigest.getInstance("MD5");
+            byte[] messageDigest = md.digest(hardwareAddress);
+
+            long lValue = 0;
+            for (int i = 0; i < messageDigest.length; i++) {
+                lValue += (long)messageDigest[i] << (i * 8);
+            }
+
+            return Long.toString(Math.abs(lValue), 36).toUpperCase();
+        } catch (Exception e) {
+            log.debug(e);
+            return "XXXXXXXXXX";
+        }
     }
 
     ////////////////////////////////////////////////////////
-    // Realm
+    // Options
+
+    public boolean isReadOnly() {
+        return false;
+    }
 
     public boolean isAdmin() {
         return hasRealmPermission(DBAPermissionRealm.PERMISSION_ADMIN);

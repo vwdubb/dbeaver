@@ -28,16 +28,18 @@ import org.jkiss.dbeaver.model.exec.jdbc.JDBCDatabaseMetaData;
 import org.jkiss.dbeaver.model.exec.jdbc.JDBCSession;
 import org.jkiss.dbeaver.model.impl.jdbc.JDBCDataSource;
 import org.jkiss.dbeaver.model.sql.SQLConstants;
+import org.jkiss.dbeaver.model.sql.SQLUtils;
 import org.jkiss.dbeaver.model.sql.parser.rules.SQLDollarQuoteRule;
 import org.jkiss.dbeaver.model.sql.parser.rules.SQLMultiWordRule;
 import org.jkiss.dbeaver.model.sql.parser.tokens.SQLTokenType;
 import org.jkiss.dbeaver.model.struct.DBSDataType;
 import org.jkiss.dbeaver.model.struct.DBSTypedObject;
-import org.jkiss.dbeaver.model.text.parser.*;
+import org.jkiss.dbeaver.model.text.parser.TPRule;
+import org.jkiss.dbeaver.model.text.parser.TPRuleProvider;
+import org.jkiss.dbeaver.model.text.parser.TPTokenDefault;
 import org.jkiss.utils.CommonUtils;
 
 import java.util.Arrays;
-import java.util.List;
 
 public class SnowflakeSQLDialect extends GenericSQLDialect implements TPRuleProvider {
 
@@ -65,22 +67,28 @@ public class SnowflakeSQLDialect extends GenericSQLDialect implements TPRuleProv
             ));
     }
 
+    @NotNull
     @Override
-    public void extendRules(@Nullable DBPDataSourceContainer dataSource, @NotNull List<TPRule> rules, @NotNull RulePosition position) {
+    public TPRule[] extendRules(@Nullable DBPDataSourceContainer dataSource, @NotNull RulePosition position) {
         if (position == RulePosition.INITIAL || position == RulePosition.PARTITION) {
-            rules.add(new SQLDollarQuoteRule(
-                position == RulePosition.PARTITION,
-                false,
-                false,
-                dataSource == null || dataSource.getPreferenceStore().getBoolean(SnowflakeConstants.PROP_DD_STRING)
-            ));
+            return new TPRule[] {
+                new SQLDollarQuoteRule(
+                    position == RulePosition.PARTITION,
+                    false,
+                    false,
+                    dataSource == null || dataSource.getPreferenceStore().getBoolean(SnowflakeConstants.PROP_DD_STRING)
+                )
+            };
         }
         if (position == RulePosition.KEYWORDS) {
             final TPTokenDefault keywordToken = new TPTokenDefault(SQLTokenType.T_KEYWORD);
-            rules.add(new SQLMultiWordRule(new String[]{"BEGIN", "TRANSACTION"}, keywordToken));
-            rules.add(new SQLMultiWordRule(new String[]{"IF", "EXISTS"}, keywordToken));
-            rules.add(new SQLMultiWordRule(new String[]{"IF", "NOT", "EXISTS"}, keywordToken));
+            return new TPRule[]{
+                new SQLMultiWordRule(new String[]{"BEGIN", "TRANSACTION"}, keywordToken),
+                new SQLMultiWordRule(new String[]{"IF", "EXISTS"}, keywordToken),
+                new SQLMultiWordRule(new String[]{"IF", "NOT", "EXISTS"}, keywordToken)
+            };
         }
+        return new TPRule[0];
     }
 
     @Override
@@ -141,5 +149,30 @@ public class SnowflakeSQLDialect extends GenericSQLDialect implements TPRuleProv
                 return null;
         }
         return super.getColumnTypeModifiers(dataSource, column, typeName, dataKind);
+    }
+    
+    @Override
+    public boolean validIdentifierStart(char c) {
+        return SQLUtils.isLatinLetter(c) || c == '_';
+    }
+    
+    @Override
+    public boolean validIdentifierPart(char c, boolean quoted) {
+        return SQLUtils.isLatinLetter(c) || Character.isDigit(c) || c == '_' || (quoted && validCharacters.indexOf(c) != -1) || c == '$';
+    }
+
+    
+    @Override
+    public boolean mustBeQuoted(@NotNull String str, boolean forceCaseSensitive) {
+        // Unquoted object identifiers:
+        // * Start with a letter (A-Z, a-z) or an underscore (“_”).
+        // * Contain only letters, underscores, decimal digits (0-9), and dollar signs (“$”).
+        // * Are stored and resolved as uppercase characters (e.g. id is stored and resolved as ID).
+        // https://docs.snowflake.com/en/sql-reference/identifiers-syntax
+
+        if (str.isBlank()) {
+            return true;
+        }
+        return super.mustBeQuoted(str, forceCaseSensitive);
     }
 }

@@ -202,7 +202,10 @@ class ResultSetPersister {
             return false;
         }
 
-        if (rowIdentifier.getEntity() instanceof DBSDocumentContainer) {
+        DBSEntity entity = rowIdentifier.getEntity();
+        if (entity != null && entity.getDataSource() != null &&
+            (entity instanceof DBSDocumentContainer || entity.getDataSource().getInfo().isDynamicMetadata())
+        ) {
             // FIXME: do not refresh documents for now. Can be solved by extracting document ID attributes
             // FIXME: but it will require to provide dynamic document metadata.
             return false;
@@ -1076,7 +1079,15 @@ class ResultSetPersister {
                         DBDDataFilter filter = new DBDDataFilter(constraints);
 
                         RowDataReceiver dataReceiver = new RowDataReceiver(curAttributes);
-                        final DBCStatistics stats = dataContainer.readData(executionSource, session, dataReceiver, filter, 0, 0, DBSDataContainer.FLAG_NONE, 0);
+                        final DBCStatistics stats = dataContainer.readData(
+                            executionSource,
+                            session,
+                            dataReceiver,
+                            filter,
+                            0,
+                            0,
+                            DBSDataContainer.FLAG_REFRESH,
+                            0);
                         refreshValues[i] = dataReceiver.rowValues;
                     }
                 }

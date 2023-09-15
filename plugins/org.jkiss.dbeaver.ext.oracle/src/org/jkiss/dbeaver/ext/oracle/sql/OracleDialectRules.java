@@ -22,24 +22,24 @@ import org.jkiss.dbeaver.model.DBPDataSourceContainer;
 import org.jkiss.dbeaver.model.sql.parser.tokens.SQLTokenType;
 import org.jkiss.dbeaver.model.text.parser.*;
 
-import java.util.List;
-
 /**
 * Oracle dialect rules
 */
 class OracleDialectRules implements TPRuleProvider {
 
+    @NotNull
     @Override
-    public void extendRules(@Nullable DBPDataSourceContainer dataSource, @NotNull List<TPRule> rules, @NotNull RulePosition position) {
+    public TPRule[] extendRules(@Nullable DBPDataSourceContainer dataSource, @NotNull RulePosition position) {
         if (position == RulePosition.INITIAL || position == RulePosition.PARTITION) {
-            rules.add(new QStringRule());
+            return new TPRule[]{ new QStringRule() };
         }
+        return new TPRule[0];
     }
 
     private static class QStringRule implements TPPredicateRule {
 
         private final TPToken stringToken;
-        private char quoteStartChar = (char) -1;
+        private int quoteStartChar = -1;
 
         QStringRule() {
             stringToken = new TPTokenDefault(SQLTokenType.T_STRING);
@@ -56,13 +56,13 @@ class OracleDialectRules implements TPRuleProvider {
                         quoteCharRead = true;
                     }
                     if (!quoteCharRead) {
-                        quoteStartChar = (char) scanner.read();
+                        quoteStartChar = scanner.read();
                         quoteCharNeedsToBeUnread = true;
                     }
 
                     if (!Character.isLetterOrDigit(quoteStartChar)) {
                         // Probably a Q-string
-                        char quoteEndChar = getQuoteEndChar(quoteStartChar);
+                        char quoteEndChar = getQuoteEndChar((char) quoteStartChar);
 
                         if (tryReadQString(scanner, quoteEndChar)) {
                             return stringToken;
@@ -71,10 +71,8 @@ class OracleDialectRules implements TPRuleProvider {
                             scanner.unread();
                         }
                     } else {
-                        quoteStartChar = (char) -1;
-                        if (quoteCharRead || quoteCharNeedsToBeUnread) {
-                            scanner.unread();
-                        }
+                        quoteStartChar = -1;
+                        scanner.unread();
                     }
                 }
                 if (!resume) {

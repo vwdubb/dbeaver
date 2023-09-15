@@ -17,12 +17,12 @@
     package org.jkiss.dbeaver.erd.ui.router;
 
 
-    import org.eclipse.draw2dl.*;
-    import org.eclipse.draw2dl.LayoutListener.Stub;
-    import org.eclipse.draw2dl.geometry.Point;
-    import org.eclipse.draw2dl.geometry.PointList;
-    import org.eclipse.draw2dl.geometry.PrecisionPoint;
-    import org.eclipse.draw2dl.geometry.Rectangle;
+    import org.eclipse.draw2d.*;
+    import org.eclipse.draw2d.LayoutListener.Stub;
+    import org.eclipse.draw2d.geometry.Point;
+    import org.eclipse.draw2d.geometry.PointList;
+    import org.eclipse.draw2d.geometry.PrecisionPoint;
+    import org.eclipse.draw2d.geometry.Rectangle;
     import org.jkiss.dbeaver.ui.UIUtils;
     import org.jkiss.utils.CommonUtils;
 
@@ -142,7 +142,7 @@
             this.figuresToBounds.clear();
 
             for (int i = 0; i < this.container.getChildren().size(); ++i) {
-                this.addChild(this.container.getChildren().get(i));
+                this.addChild((IFigure) this.container.getChildren().get(i));
             }
 
             this.container.addLayoutListener(this.listener);

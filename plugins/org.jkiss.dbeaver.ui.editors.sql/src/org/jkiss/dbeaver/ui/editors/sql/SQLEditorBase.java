@@ -37,6 +37,8 @@ import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.ISelectionProvider;
 import org.eclipse.jface.viewers.StructuredSelection;
 import org.eclipse.swt.custom.StyledText;
+import org.eclipse.swt.events.ControlAdapter;
+import org.eclipse.swt.events.ControlEvent;
 import org.eclipse.swt.events.MouseAdapter;
 import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.graphics.Point;
@@ -52,6 +54,7 @@ import org.eclipse.ui.texteditor.templates.ITemplatesPage;
 import org.eclipse.ui.themes.IThemeManager;
 import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
+import org.jkiss.dbeaver.DBException;
 import org.jkiss.dbeaver.Log;
 import org.jkiss.dbeaver.ModelPreferences;
 import org.jkiss.dbeaver.model.*;
@@ -65,8 +68,11 @@ import org.jkiss.dbeaver.model.sql.completion.SQLCompletionContext;
 import org.jkiss.dbeaver.model.sql.parser.*;
 import org.jkiss.dbeaver.runtime.DBWorkbench;
 import org.jkiss.dbeaver.ui.*;
+import org.jkiss.dbeaver.ui.controls.resultset.ThemeConstants;
+import org.jkiss.dbeaver.ui.editors.AbstractStorageEditorInput;
 import org.jkiss.dbeaver.ui.editors.BaseTextEditorCommands;
 import org.jkiss.dbeaver.ui.editors.EditorUtils;
+import org.jkiss.dbeaver.ui.editors.StringEditorInput;
 import org.jkiss.dbeaver.ui.editors.sql.internal.SQLEditorMessages;
 import org.jkiss.dbeaver.ui.editors.sql.preferences.*;
 import org.jkiss.dbeaver.ui.editors.sql.syntax.*;
@@ -90,6 +96,7 @@ public abstract class SQLEditorBase extends BaseTextEditor implements DBPContext
 
     static protected final Log log = Log.getLog(SQLEditorBase.class);
     public static final long MAX_FILE_LENGTH_FOR_RULES = 1024 * 1000 * 2; // 2MB
+    private static final int SCROLL_ON_RESIZE_THRESHOLD_PX = 10;
 
     static final String STATS_CATEGORY_SELECTION_STATE = "SelectionState";
 
@@ -168,6 +175,17 @@ public abstract class SQLEditorBase extends BaseTextEditor implements DBPContext
         completionContext = new SQLEditorCompletionContext(this);
 
         DBWorkbench.getPlatform().getPreferenceStore().addPropertyChangeListener(this);
+    }
+
+    @Override
+    protected void setDocumentProvider(IEditorInput input) {
+        if (input instanceof StringEditorInput) {
+            if (!(getDocumentProvider() instanceof NonFileDocumentProvider)) {
+                IDocumentProvider prov = new NonFileDocumentProvider(this, (StringEditorInput) input);
+                setDocumentProvider(prov);
+            }
+        }
+        super.setDocumentProvider(input);
     }
 
     @Override
@@ -380,6 +398,35 @@ public abstract class SQLEditorBase extends BaseTextEditor implements DBPContext
                     return region.getLength() > 0 && index >= region.getOffset() && index < region.getOffset() + region.getLength();
                 }
             });
+
+            // A listener that reveals obscured part of the document the cursor was located in before the control was resized
+            widget.addControlListener(new ControlAdapter() {
+                private int lastHeight;
+
+                @Override
+                public void controlResized(ControlEvent e) {
+                    final int currentHeight = widget.getSize().y;
+                    final int lastHeight = this.lastHeight;
+                    this.lastHeight = currentHeight;
+
+                    if (Math.abs(currentHeight - lastHeight) < SCROLL_ON_RESIZE_THRESHOLD_PX) {
+                        return;
+                    }
+
+                    try {
+                        final IDocument document = sourceViewer.getDocument();
+                        final int visibleLine = sourceViewer.getBottomIndex();
+                        final int currentLine = document.getLineOfOffset(sourceViewer.getSelectedRange().x);
+
+                        if (currentLine > visibleLine) {
+                            final int revealToLine = Math.min(document.getNumberOfLines() - 1, currentLine + 1);
+                            final int revealToOffset = document.getLineOffset(revealToLine);
+                            sourceViewer.revealRange(revealToOffset, 0);
+                        }
+                    } catch (BadLocationException ignored) {
+                    }
+                }
+            });
         }
     }
 
@@ -445,6 +492,10 @@ public abstract class SQLEditorBase extends BaseTextEditor implements DBPContext
 
     @Override
     protected void doSetInput(IEditorInput input) throws CoreException {
+        if (getDocumentProvider() instanceof NonFileDocumentProvider) {
+            setDocumentProvider((IDocumentProvider) null);
+        }
+
         handleInputChange(input);
 
         final IFile file = GeneralUtils.adapt(input, IFile.class);
@@ -514,6 +565,10 @@ public abstract class SQLEditorBase extends BaseTextEditor implements DBPContext
 */
 
         super.configureSourceViewerDecorationSupport(support);
+
+        if (UIStyles.isDarkHighContrastTheme()) {
+            support.setCursorLinePainterPreferenceKeys(AbstractDecoratedTextEditorPreferenceConstants.EDITOR_CURRENT_LINE, ThemeConstants.COLOR_SQL_RESULT_LINES_SELECTED);
+        }
     }
 
     public ICharacterPairMatcher getCharacterPairMatcher() {
@@ -1138,6 +1193,34 @@ public abstract class SQLEditorBase extends BaseTextEditor implements DBPContext
                 PropertyDialog.createDialogOn(shell, null, new StructuredSelection(getEditorInput())).open();
                 //PreferencesUtil.createPreferenceDialogOn(shell, preferencePages[0], preferencePages, getEditorInput()).open();
             }
+        }
+    }
+
+    private static class NonFileDocumentProvider extends SQLObjectDocumentProvider {
+
+        private final StringEditorInput editorInput;
+
+        public NonFileDocumentProvider(SQLEditorBase editor, StringEditorInput editorInput) {
+            super(editor);
+            this.editorInput = editorInput;
+        }
+
+        @Override
+        protected String loadSourceText(DBRProgressMonitor monitor) throws DBException {
+            return editorInput.getBuffer().toString();
+        }
+
+        @Override
+        protected void saveSourceText(DBRProgressMonitor monitor, String text) throws DBException {
+            editorInput.setText(text);
+        }
+
+        @Override
+        public boolean isReadOnly(Object element) {
+            if (element instanceof AbstractStorageEditorInput) {
+                return ((AbstractStorageEditorInput) element).isReadOnly();
+            }
+            return editorInput.isReadOnly();
         }
     }
 

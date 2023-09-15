@@ -162,9 +162,9 @@ public class DatabaseNativeAuthModelConfigurator implements IObjectPropertyConfi
         panel.setLayoutData(gd);
 
         savePasswordCheck = UIUtils.createCheckbox(panel,
-            UIConnectionMessages.dialog_connection_wizard_final_checkbox_save_password_locally,
+            UIConnectionMessages.dialog_connection_wizard_final_checkbox_save_password,
             dataSource == null || dataSource.isSavePassword());
-        savePasswordCheck.setToolTipText(UIConnectionMessages.dialog_connection_wizard_final_checkbox_save_password_locally);
+        savePasswordCheck.setToolTipText(UIConnectionMessages.dialog_connection_wizard_final_checkbox_save_password);
         savePasswordCheck.addSelectionListener(new SelectionAdapter() {
             @Override
             public void widgetSelected(SelectionEvent e) {
@@ -196,7 +196,7 @@ public class DatabaseNativeAuthModelConfigurator implements IObjectPropertyConfi
             if (!serviceSecurity.validatePassword(
                 dataSource.getProject(),
                 "Enter project password",
-                "Enter project master password to unlock connection password view",
+                "Enter project password to unlock connection password view",
                 true))
             {
                 return;

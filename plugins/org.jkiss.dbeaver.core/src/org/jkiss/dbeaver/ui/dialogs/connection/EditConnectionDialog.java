@@ -18,6 +18,7 @@ package org.jkiss.dbeaver.ui.dialogs.connection;
 
 import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.dialogs.IDialogSettings;
+import org.eclipse.jface.wizard.IWizardPage;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
@@ -28,7 +29,6 @@ import org.jkiss.code.Nullable;
 import org.jkiss.dbeaver.core.CoreFeatures;
 import org.jkiss.dbeaver.core.CoreMessages;
 import org.jkiss.dbeaver.model.DBPDataSourceContainer;
-import org.jkiss.dbeaver.model.connection.DBPDriverSubstitutionDescriptor;
 import org.jkiss.dbeaver.registry.DataSourceDescriptor;
 import org.jkiss.dbeaver.ui.UIUtils;
 import org.jkiss.dbeaver.ui.dialogs.MultiPageWizardDialog;
@@ -49,6 +49,7 @@ public class EditConnectionDialog extends MultiPageWizardDialog {
     private static final Map<DBPDataSourceContainer, EditConnectionDialog> openDialogs = Collections.synchronizedMap(new IdentityHashMap<>());
 
     private static final int TEST_BUTTON_ID = 2000;
+
     private static String lastActivePage;
 
     private Button testButton;
@@ -73,21 +74,35 @@ public class EditConnectionDialog extends MultiPageWizardDialog {
         return UIUtils.getDialogSettings("DBeaver.EditConnectionDialog");
     }
 
+    @NotNull
+    @Override
+    protected IWizardPage getStartingPage() {
+/*
+        String defPage = defaultPageName;
+        if (defPage == null) {
+            defPage = lastActivePage;
+        }
+        if (defPage != null) {
+            IWizardPage page = getWizard().getPage(defPage);
+            if (page != null) {
+                return page;
+            }
+        }
+*/
+        return super.getStartingPage();
+    }
+
     @Override
     protected Control createContents(Composite parent) {
         Control contents = super.createContents(parent);
-
         String activePage = defaultPageName;
         if (CommonUtils.isEmpty(activePage)) {
             activePage = lastActivePage;
         }
         if (!CommonUtils.isEmpty(activePage)) {
             String finalActivePage = activePage;
-            UIUtils.asyncExec(() -> {
-                getWizard().openSettingsPage(finalActivePage);
-            });
+            UIUtils.asyncExec(() -> getWizard().openSettingsPage(finalActivePage));
         }
-
         // Expand first page
         Tree pagesTree = getPagesTree();
         TreeItem[] items = pagesTree.getItems();
@@ -152,6 +167,7 @@ public class EditConnectionDialog extends MultiPageWizardDialog {
     private void testConnection() {
         getWizard().testConnection();
     }
+
 
     public static boolean openEditConnectionDialog(IWorkbenchWindow window, DBPDataSourceContainer dataSource, String defaultPageName) {
         return openEditConnectionDialog(window, dataSource, defaultPageName, null);

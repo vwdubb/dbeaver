@@ -21,20 +21,21 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.MultiStatus;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.jobs.Job;
-import org.eclipse.draw2dl.IFigure;
-import org.eclipse.draw2dl.PrintFigureOperation;
-import org.eclipse.draw2dl.geometry.Dimension;
-import org.eclipse.draw2dl.geometry.Insets;
-import org.eclipse.gef3.*;
-import org.eclipse.gef3.commands.CommandStack;
-import org.eclipse.gef3.editparts.ScalableFreeformRootEditPart;
-import org.eclipse.gef3.editparts.ZoomManager;
-import org.eclipse.gef3.palette.PaletteRoot;
-import org.eclipse.gef3.ui.actions.*;
-import org.eclipse.gef3.ui.palette.FlyoutPaletteComposite;
-import org.eclipse.gef3.ui.palette.PaletteViewerProvider;
-import org.eclipse.gef3.ui.parts.GraphicalEditorWithFlyoutPalette;
-import org.eclipse.gef3.ui.properties.UndoablePropertySheetEntry;
+import org.eclipse.draw2d.IFigure;
+import org.eclipse.draw2d.PrintFigureOperation;
+import org.eclipse.draw2d.geometry.Dimension;
+import org.eclipse.draw2d.geometry.Insets;
+import org.eclipse.gef.*;
+import org.eclipse.gef.commands.Command;
+import org.eclipse.gef.commands.CommandStack;
+import org.eclipse.gef.editparts.ScalableFreeformRootEditPart;
+import org.eclipse.gef.editparts.ZoomManager;
+import org.eclipse.gef.palette.PaletteRoot;
+import org.eclipse.gef.ui.actions.*;
+import org.eclipse.gef.ui.palette.FlyoutPaletteComposite;
+import org.eclipse.gef.ui.palette.PaletteViewerProvider;
+import org.eclipse.gef.ui.parts.GraphicalEditorWithFlyoutPalette;
+import org.eclipse.gef.ui.properties.UndoablePropertySheetEntry;
 import org.eclipse.jface.action.*;
 import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.util.IPropertyChangeListener;
@@ -114,7 +115,7 @@ import java.util.regex.PatternSyntaxException;
 
 /**
  * Editor implementation based on the the example editor skeleton that is built in <i>Building
- * an editor </i> in chapter <i>Introduction to .gef3 </i>
+ * an editor </i> in chapter <i>Introduction to .gef </i>
  */
 public abstract class ERDEditorPart extends GraphicalEditorWithFlyoutPalette
         implements DBPDataSourceTask, IDatabaseModellerEditor, ISearchContextProvider, IRefreshablePart, INavigatorModelView {
@@ -235,7 +236,14 @@ public abstract class ERDEditorPart extends GraphicalEditorWithFlyoutPalette
     @Override
     public void init(IEditorSite site, IEditorInput input) throws PartInitException
     {
-        rootPart = new ScalableFreeformRootEditPart();
+        try {
+            // Use reflection to make it compile with older Eclipse versions
+            rootPart = ScalableFreeformRootEditPart.class
+                .getConstructor(Boolean.TYPE)
+                .newInstance(false);
+        } catch (Throwable e) {
+            rootPart = new ScalableFreeformRootEditPart();
+        }
         editDomain = new DefaultEditDomain(this);
         setEditDomain(editDomain);
 
@@ -322,7 +330,7 @@ public abstract class ERDEditorPart extends GraphicalEditorWithFlyoutPalette
     @Override
     public Object getAdapter(Class adapter)
     {
-        // we need to handle common .gef3 elements we created
+        // we need to handle common .gef elements we created
         if (adapter == GraphicalViewer.class || adapter == EditPartViewer.class) {
             return getGraphicalViewer();
         } else if (adapter == CommandStack.class) {
@@ -1011,22 +1019,23 @@ public abstract class ERDEditorPart extends GraphicalEditorWithFlyoutPalette
 
             toolBarManager.add(ActionUtils.makeCommandContribution(getSite(), ERDUIConstants.CMD_SAVE_AS));
         }
+        fillConfigurationContribution(toolBarManager);
+    }
+    
+    protected void fillConfigurationContribution(IContributionManager toolBarManager) {
         toolBarManager.add(new Separator("configuration"));
-        {
-            Action configAction = new Action(ERDUIMessages.erd_editor_control_action_configuration) {
-                @Override
-                public void run()
-                {
-                    UIUtils.showPreferencesFor(
-                        getSite().getShell(),
-                        ERDEditorPart.this,
-                        ERDPreferencePage.PAGE_ID);
-                    getDiagram().setAttributeStyles(ERDViewStyle.getDefaultStyles(ERDUIActivator.getDefault().getPreferences()));
-                }
-            };
-            configAction.setImageDescriptor(DBeaverIcons.getImageDescriptor(UIIcon.PANEL_CUSTOMIZE));
-            toolBarManager.add(configAction);
-        }
+        Action configAction = new Action(ERDUIMessages.erd_editor_control_action_configuration) {
+            @Override
+            public void run() {
+                UIUtils.showPreferencesFor(
+                    getSite().getShell(),
+                    ERDEditorPart.this,
+                    ERDPreferencePage.PAGE_ID);
+                getDiagram().setAttributeStyles(ERDViewStyle.getDefaultStyles(ERDUIActivator.getDefault().getPreferences()));
+            }
+        };
+        configAction.setImageDescriptor(DBeaverIcons.getImageDescriptor(UIIcon.CONFIGURATION));
+        toolBarManager.add(configAction);
     }
 
     protected abstract void loadDiagram(boolean refreshMetadata);
@@ -1067,7 +1076,7 @@ public abstract class ERDEditorPart extends GraphicalEditorWithFlyoutPalette
         public void run()
         {
             getDiagram().setAttributeStyle(style, !isChecked());
-            refreshDiagram(true, false);
+            refreshEntityAndAttributes();
         }
     }
 
@@ -1116,11 +1125,7 @@ public abstract class ERDEditorPart extends GraphicalEditorWithFlyoutPalette
                 for (ERDEntity entity : diagram.getEntities()) {
                     entity.reloadAttributes(diagram);
                 }
-                for (Object object : getGraphicalViewer().getContents().getChildren()) {
-                    if (object instanceof EntityPart) {
-                        ((EntityPart) object).refresh();
-                    }
-                }
+                refreshEntityAndAttributes();
             } else {
                 for (Object object : ((IStructuredSelection)getGraphicalViewer().getSelection()).toArray()) {
                     if (object instanceof EntityPart) {
@@ -1157,18 +1162,22 @@ public abstract class ERDEditorPart extends GraphicalEditorWithFlyoutPalette
                 EntityDiagram diagram = getDiagram();
                 ERDAttributeVisibility attrVisibility = CommonUtils.valueOf(ERDAttributeVisibility.class, CommonUtils.toString(event.getNewValue()));
                 diagram.setAttributeVisibility(attrVisibility);
-                for (ERDEntity entity : diagram.getEntities()) {
-                    entity.reloadAttributes(diagram);
-                }
-                for (Object object : getGraphicalViewer().getContents().getChildren()) {
-                    if (object instanceof EntityPart) {
-                        ((EntityPart) object).refresh();
-                    }
-                }
+                refreshEntityAndAttributes();
             } else if (ERDConstants.PREF_ATTR_STYLES.equals(event.getProperty())) {
-                refreshDiagram(true, false);
+                refreshEntityAndAttributes();
             } else if (ERDUIConstants.PREF_DIAGRAM_SHOW_VIEWS.equals(event.getProperty()) || ERDUIConstants.PREF_DIAGRAM_SHOW_PARTITIONS.equals(event.getProperty())) {
                 refreshDiagram(true, true);
+            }
+        }
+    }
+
+    private void refreshEntityAndAttributes() {
+        for (ERDEntity entity : getDiagram().getEntities()) {
+            entity.reloadAttributes(getDiagram());
+        }
+        for (Object object : getGraphicalViewer().getContents().getChildren()) {
+            if (object instanceof EntityPart) {
+                ((EntityPart) object).refresh();
             }
         }
     }
@@ -1274,6 +1283,10 @@ public abstract class ERDEditorPart extends GraphicalEditorWithFlyoutPalette
                 }
                 getCommandStack().flush();
                 if (entityDiagram != null) {
+                    if (entityDiagram.isDirty()) {
+                        // Associated connections were changed during the loading process
+                        getCommandStack().execute(new MarkDirtyCommand());
+                    }
                     EditPart oldContents = getGraphicalViewer().getContents();
                     if (oldContents instanceof DiagramPart) {
                         if (restoreVisualSettings((DiagramPart) oldContents, entityDiagram)) {
@@ -1508,6 +1521,26 @@ public abstract class ERDEditorPart extends GraphicalEditorWithFlyoutPalette
         @Override
         public void setSelection(ISelection selection, boolean reveal) {
 
+        }
+    }
+
+    /**
+     * A special command that marks the editor dirty without the possibility to undo it.
+     */
+    private static class MarkDirtyCommand extends Command {
+        @Override
+        public boolean canExecute() {
+            return true;
+        }
+
+        @Override
+        public boolean canRedo() {
+            return false;
+        }
+
+        @Override
+        public boolean canUndo() {
+            return false;
         }
     }
 }

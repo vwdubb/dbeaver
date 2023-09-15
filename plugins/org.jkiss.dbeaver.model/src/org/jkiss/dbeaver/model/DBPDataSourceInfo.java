@@ -26,6 +26,8 @@ import java.util.Map;
 /**
  * DBPDataSourceInfo
  */
+@DPIObject
+@DPIElement
 public interface DBPDataSourceInfo
 {
 
@@ -182,4 +184,6 @@ public interface DBPDataSourceInfo
     DBSObjectType[] getSupportedObjectTypes();
 
     boolean needsTableMetaForColumnResolution();
+
+    boolean supportsStatementBinding();
 }

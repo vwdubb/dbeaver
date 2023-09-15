@@ -26,11 +26,11 @@ import java.util.NoSuchElementException;
  */
 public class QMMTransactionSavepointInfo extends QMMObject {
 
-    private final QMMTransactionInfo transaction;
+    private final transient QMMTransactionInfo transaction;
     private final String name;
     private boolean committed;
-    private final QMMTransactionSavepointInfo previous;
-    private QMMStatementExecuteInfo lastExecute;
+    private final transient QMMTransactionSavepointInfo previous;
+    private transient QMMStatementExecuteInfo lastExecute;
 
     private transient DBCSavepoint reference;
 
@@ -138,11 +138,6 @@ public class QMMTransactionSavepointInfo extends QMMObject {
     @Override
     public String getText() {
         return transaction.getText();
-    }
-
-    @Override
-    public QMMetaObjectType getObjectType() {
-        return QMMetaObjectType.TRANSACTION_SAVEPOINT_INFO;
     }
 
     @Override

@@ -41,7 +41,10 @@ import java.lang.reflect.Method;
 import java.text.DecimalFormat;
 import java.text.Format;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.List;
+import java.util.ResourceBundle;
 import java.util.stream.Collectors;
 
 /**
@@ -175,8 +178,7 @@ public class ObjectPropertyDescriptor extends ObjectAttributeDescriptor implemen
         return propInfo.href();
     }
 
-    public boolean supportsPreview()
-    {
+    public boolean supportsPreview() {
         return propInfo.supportsPreview();
     }
 
@@ -184,12 +186,15 @@ public class ObjectPropertyDescriptor extends ObjectAttributeDescriptor implemen
         return propInfo.password();
     }
 
+    public String getKeyName() {
+        return propInfo.keyName();
+    }
+
     public boolean isNonSecuredProperty() {
         return propInfo.nonSecuredProperty();
     }
 
-    public IPropertyValueTransformer getValueTransformer()
-    {
+    public IPropertyValueTransformer getValueTransformer() {
         return valueTransformer;
     }
 
@@ -597,7 +602,7 @@ public class ObjectPropertyDescriptor extends ObjectAttributeDescriptor implemen
                     }
                 }
                 if (result == null) {
-                    if (type.equals(Property.RESOURCE_TYPE_NAME)) {
+                    if (type.equals(Property.RESOURCE_TYPE_NAME) && warnMissing) {
                         log.debug("Resource '" + messageID + "' not found in bundle " + bundle.getSymbolicName());
                     }
                     return defaultValue;

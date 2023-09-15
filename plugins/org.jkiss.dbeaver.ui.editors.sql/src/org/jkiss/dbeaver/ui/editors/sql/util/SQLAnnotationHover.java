@@ -19,10 +19,13 @@ package org.jkiss.dbeaver.ui.editors.sql.util;
 import org.eclipse.jface.text.*;
 import org.eclipse.jface.text.source.Annotation;
 import org.eclipse.jface.text.source.IAnnotationHover;
+import org.eclipse.jface.text.source.IAnnotationModel;
 import org.eclipse.jface.text.source.ISourceViewer;
 import org.eclipse.ui.IEditorPart;
+import org.eclipse.ui.texteditor.spelling.SpellingAnnotation;
 import org.jkiss.dbeaver.Log;
 import org.jkiss.dbeaver.ui.editors.sql.SQLEditorBase;
+import org.jkiss.dbeaver.ui.editors.sql.syntax.SQLProblemAnnotation;
 
 import java.util.Iterator;
 
@@ -54,13 +57,19 @@ public class SQLAnnotationHover extends AbstractSQLEditorTextHover
         ISourceViewer sourceViewer = (ISourceViewer) textViewer;
         for (Iterator<Annotation> ai = sourceViewer.getAnnotationModel().getAnnotationIterator(); ai.hasNext(); ) {
             Annotation anno = ai.next();
-            Position annoPosition = sourceViewer.getAnnotationModel().getPosition(anno);
-            if (annoPosition != null && annoPosition.overlapsWith(hoverRegion.getOffset(), hoverRegion.getLength())) {
-                return anno.getText();
+            if (isSupportedAnnotation(anno)) {
+                Position annoPosition = sourceViewer.getAnnotationModel().getPosition(anno);
+                if (annoPosition != null && annoPosition.overlapsWith(hoverRegion.getOffset(), 1)) {
+                    return anno.getText();
+                }
             }
         }
 
         return null;
+    }
+
+    private boolean isSupportedAnnotation(Annotation anno) {
+        return anno instanceof SpellingAnnotation || anno instanceof SQLProblemAnnotation;
     }
 
     @Override
@@ -68,12 +77,16 @@ public class SQLAnnotationHover extends AbstractSQLEditorTextHover
         if (!(textViewer instanceof ISourceViewer)) {
             return null;
         }
-        ISourceViewer sourceViewer = (ISourceViewer) textViewer;
-        for (Iterator<Annotation> ai = sourceViewer.getAnnotationModel().getAnnotationIterator(); ai.hasNext(); ) {
-            Annotation anno = ai.next();
-            Position annoPosition = sourceViewer.getAnnotationModel().getPosition(anno);
-            if (annoPosition != null && annoPosition.overlapsWith(offset, 1)) {
-                return new Region(annoPosition.getOffset(), annoPosition.getLength());
+        IAnnotationModel annotationModel = ((ISourceViewer) textViewer).getAnnotationModel();
+        if (annotationModel != null) {
+            for (Iterator<Annotation> ai = annotationModel.getAnnotationIterator(); ai.hasNext(); ) {
+                Annotation anno = ai.next();
+                if (isSupportedAnnotation(anno)) {
+                    Position annoPosition = annotationModel.getPosition(anno);
+                    if (annoPosition != null && annoPosition.overlapsWith(offset, 1)) {
+                        return new Region(annoPosition.getOffset(), annoPosition.getLength());
+                    }
+                }
             }
         }
         return null;
@@ -89,9 +102,11 @@ public class SQLAnnotationHover extends AbstractSQLEditorTextHover
             int lineLength = sourceViewer.getDocument().getLineLength(lineNumber);
             for (Iterator<Annotation> ai = sourceViewer.getAnnotationModel().getAnnotationIterator(); ai.hasNext(); ) {
                 Annotation anno = ai.next();
-                Position annoPosition = sourceViewer.getAnnotationModel().getPosition(anno);
-                if (annoPosition != null && annoPosition.overlapsWith(linePosition, lineLength)) {
-                    return anno.getText();
+                if (isSupportedAnnotation(anno)) {
+                    Position annoPosition = sourceViewer.getAnnotationModel().getPosition(anno);
+                    if (annoPosition != null && annoPosition.overlapsWith(linePosition, lineLength)) {
+                        return anno.getText();
+                    }
                 }
             }
         } catch (BadLocationException e) {
